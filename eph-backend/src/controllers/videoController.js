@@ -9,90 +9,104 @@ const { v4: uuidv4 } = require('uuid');
 
 const videoController = {
   // Get video feed (public/authenticated)
-  getVideoFeed: async (req, res) => {
-    try {
-      const {
-        page = 1,
-        limit = 20,
-        tags,
-        search,
-        uploader
-      } = req.query;
+getVideoFeed: async (req, res) => {
+  try {
+    const {
+      page = 1,
+      limit = 20,
+      tags,
+      search,
+      uploader
+    } = req.query;
 
-      const pageNum = parseInt(page, 10) || 1;
-      const limitNum = parseInt(limit, 10) || 20;
-      const offset = (pageNum - 1) * limitNum;
-      const userRole = req.user?.role || 'student';
+    const pageNum = parseInt(page, 10) || 1;
+    const limitNum = parseInt(limit, 10) || 20;
+    const offset = (pageNum - 1) * limitNum;
+    const userRole = req.user?.role || 'student';
+    const userId = req.user?.id;
 
-      const whereClause = {
-        processing_status: { [Op.eq]: 'completed' },
-        is_active: true
-      };
+    const whereClause = {
+      processing_status: { [Op.eq]: 'completed' },
+      is_active: true
+    };
 
+    // ✅ Role-based filtering
+    if (userRole === 'student') {
+      // Students only see their own videos
+      if (!userId) {
+        return res.status(401).json({
+          success: false,
+          message: 'Authentication required'
+        });
+      }
+      whereClause.uploader_id = userId;
+    } else {
+      // Admin, hiring, investor see all videos
       const rolesToCheck = Array.from(new Set([userRole, 'student']));
       whereClause.visibility_roles = { [Op.overlap]: rolesToCheck };
-
-      if (uploader) whereClause.uploader_id = uploader;
-      if (tags) {
-        const tagArray = tags.split(',').map(tag => tag.trim()).filter(Boolean);
-        if (tagArray.length) whereClause.tags = { [Op.overlap]: tagArray };
-      }
-
-      if (search) {
-        whereClause[Op.or] = [
-          { title: { [Op.iLike]: `%${search}%` } },
-          { description: { [Op.iLike]: `%${search}%` } },
-          { tags: { [Op.overlap]: [search] } }
-        ];
-      }
-
-      const orderBy = [['created_at', 'DESC']];
-
-      const { rows: videos, count } = await Video.findAndCountAll({
-        where: whereClause,
-        include: [
-          {
-            model: User,
-            as: 'uploader',
-            attributes: ['id', 'name', 'college', 'branch', 'profile_pic_url', 'verified']
-          }
-        ],
-        limit: limitNum,
-        offset,
-        order: orderBy,
-        distinct: true
-      });
-
-      const totalPages = Math.ceil(count / limitNum);
-
-      const formattedVideos = videos.map(video => ({
-        ...video.toPublicJSON(userRole),
-        uploader: video.uploader ? video.uploader.toJSON() : null
-      }));
-
-      res.json({
-        success: true,
-        data: {
-          videos: formattedVideos,
-          pagination: {
-            currentPage: pageNum,
-            totalPages,
-            totalVideos: count,
-            hasNextPage: pageNum < totalPages,
-            hasPrevPage: pageNum > 1
-          }
-        }
-      });
-
-    } catch (error) {
-      logger.error('Get video feed error:', error);
-      res.status(500).json({
-        success: false,
-        message: 'Failed to fetch video feed',
-        error: error.message
-      });
     }
-  },
+
+    if (uploader) whereClause.uploader_id = uploader;
+    if (tags) {
+      const tagArray = tags.split(',').map(tag => tag.trim()).filter(Boolean);
+      if (tagArray.length) whereClause.tags = { [Op.overlap]: tagArray };
+    }
+
+    if (search) {
+      whereClause[Op.or] = [
+        { title: { [Op.iLike]: `%${search}%` } },
+        { description: { [Op.iLike]: `%${search}%` } },
+        { tags: { [Op.overlap]: [search] } }
+      ];
+    }
+
+    const orderBy = [['created_at', 'DESC']];
+
+    const { rows: videos, count } = await Video.findAndCountAll({
+      where: whereClause,
+      include: [
+        {
+          model: User,
+          as: 'uploader',
+          attributes: ['id', 'name', 'college', 'branch', 'profile_pic_url', 'verified']
+        }
+      ],
+      limit: limitNum,
+      offset,
+      order: orderBy,
+      distinct: true
+    });
+
+    const totalPages = Math.ceil(count / limitNum);
+
+    const formattedVideos = videos.map(video => ({
+      ...video.toPublicJSON(userRole),
+      uploader: video.uploader ? video.uploader.toJSON() : null
+    }));
+
+    res.json({
+      success: true,
+      data: {
+        videos: formattedVideos,
+        pagination: {
+          currentPage: pageNum,
+          totalPages,
+          totalVideos: count,
+          hasNextPage: pageNum < totalPages,
+          hasPrevPage: pageNum > 1
+        }
+      }
+    });
+
+  } catch (error) {
+    logger.error('Get video feed error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch video feed',
+      error: error.message
+    });
+  }
+},
 
   // Get video by ID
   getVideoById: async (req, res) => {

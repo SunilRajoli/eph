@@ -37,8 +37,8 @@ const RoleSelectionScreen = () => {
 
   const roles = [
     { key: 'student',  title: 'Student',  subtitle: 'Showcase projects & join competitions', icon: SchoolIcon },
-    { key: 'hiring',   title: 'Hiring',   subtitle: 'Discover talents & post opportunities', icon: WorkIcon },
-    { key: 'investor', title: 'Investor', subtitle: 'Find startups & promising projects',    icon: MoneyIcon },
+    // { key: 'hiring',   title: 'Hiring',   subtitle: 'Discover talents & post opportunities', icon: WorkIcon },
+    // { key: 'investor', title: 'Investor', subtitle: 'Find startups & promising projects',    icon: MoneyIcon },
     { key: 'admin',    title: 'Admin',    subtitle: 'Manage competitions & platform',        icon: AdminIcon },
   ];
 

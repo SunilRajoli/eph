@@ -69,29 +69,38 @@ const LoginScreen = () => {
   };
 
   const handleLogin = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  e.preventDefault();
+  if (!validateForm()) return;
 
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const result = await login({
-        email: formData.email.trim(),
-        password: formData.password,
-        role: selectedRole
-      });
-      if (result.success) {
-          const dest = result.mustChangePassword ? '/change-password' : '/main';
-          navigate(dest, { replace: true, state: { tab: 'competitions' } });
-    } else {
-        setErrorMsg(result.message || 'Login failed');
+  setLoading(true);
+  setErrorMsg('');
+  try {
+    const result = await login({
+      email: formData.email.trim(),
+      password: formData.password,
+      role: selectedRole
+    });
+    
+    if (result.success) {
+      // Check if password change is required
+      if (result.mustChangePassword) {
+        navigate('/change-password', { replace: true });
+      } else {
+        // ✅ Role-based redirect
+        const user = result.user;
+        const isAdminRole = (user?.role || '').toLowerCase() === 'admin';
+        const destination = isAdminRole ? '/admin' : '/main';
+        navigate(destination, { replace: true, state: { tab: 'competitions' } });
       }
-    } catch (err) {
-      setErrorMsg(`Network error: ${err.message}`);
-    } finally {
-      setLoading(false);
+    } else {
+      setErrorMsg(result.message || 'Login failed');
     }
-  };
+  } catch (err) {
+    setErrorMsg(`Network error: ${err.message}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleOAuthLogin = async (provider) => {
   setOauthLoading(true);

@@ -1,4 +1,4 @@
-// controllers/authController.js - Enhanced version
+// controllers/authController.js - Enhanced version with better error messages
 const { User } = require('../models');
 const authService = require('../services/authService');
 const emailService = require('../services/emailService');
@@ -53,7 +53,7 @@ const authController = {
         data: {
           user: user.toJSON(),
           token,
-          mustChangePassword // Frontend will redirect to change password page
+          mustChangePassword
         }
       });
 
@@ -68,69 +68,74 @@ const authController = {
   },
 
   // Enhanced change password to handle force_password_change flag
-  changePassword : async (req, res) => {
-  try {
-    const { currentPassword, newPassword } = req.body;
-    const user = await User.findByPk(req.user.id);
+  changePassword: async (req, res) => {
+    try {
+      const { currentPassword, newPassword } = req.body;
+      const user = await User.findByPk(req.user.id);
 
-    if (!user) {
-      return res.status(404).json({ success: false, message: 'User not found' });
-    }
-
-    // If NOT a forced change, verify the current password
-    if (!user.force_password_change) {
-      const ok = await user.validatePassword(currentPassword);
-      if (!ok) {
-        return res.status(400).json({ success: false, message: 'Current password is incorrect' });
+      if (!user) {
+        return res.status(404).json({ 
+          success: false, 
+          message: 'User not found' 
+        });
       }
-    }
 
-    // Strength check
-    if (!isPasswordStrong(newPassword)) {
-      return res.status(400).json({
+      // If NOT a forced change, verify the current password
+      if (!user.force_password_change) {
+        const ok = await user.validatePassword(currentPassword);
+        if (!ok) {
+          return res.status(400).json({ 
+            success: false, 
+            message: 'Current password is incorrect' 
+          });
+        }
+      }
+
+      // Strength check
+      if (!isPasswordStrong(newPassword)) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password must be at least 8 characters with uppercase, lowercase, number, and special character',
+        });
+      }
+
+      // Update
+      user.password_hash = newPassword;
+      user.force_password_change = false;
+      user.password_changed_at = new Date();
+      await user.save();
+
+      // Fire-and-forget notification
+      emailService
+        .sendPasswordChangedNotification(user.email, user.name)
+        .then(() => logger.info('Password change notification sent', { userId: user.id }))
+        .catch((err) => logger.warn('Failed to send password change notification', { error: err?.message }));
+
+      const safeUser = {
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        is_verified: !!user.is_verified,
+        force_password_change: !!user.force_password_change,
+      };
+
+      return res.json({
+        success: true,
+        message: 'Password changed successfully',
+        data: { user: safeUser },
+      });
+    } catch (error) {
+      logger.error('Password change error:', error);
+      return res.status(500).json({
         success: false,
-        message: 'Password must be at least 8 chars and include upper, lower, number, and special character',
+        message: 'Failed to change password',
+        error: error?.message,
       });
     }
+  },
 
-    // Update (model hook will hash if you use password_hash setter/hook)
-    user.password_hash = newPassword;
-    user.force_password_change = false;
-    user.password_changed_at = new Date();
-    await user.save();
-
-    // Fire-and-forget notification
-    emailService
-      .sendPasswordChangedNotification(user.email, user.name)
-      .then(() => logger.info('Password change notification sent', { userId: user.id }))
-      .catch((err) => logger.warn('Failed to send password change notification', { error: err?.message }));
-
-    // Return a safe user object (no sensitive fields)
-    const safeUser = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role,
-      is_verified: !!user.is_verified,
-      force_password_change: !!user.force_password_change,
-    };
-
-    return res.json({
-      success: true,
-      message: 'Password changed successfully',
-      data: { user: safeUser },
-    });
-  } catch (error) {
-    logger.error('Password change error:', error);
-    return res.status(500).json({
-      success: false,
-      message: 'Failed to change password',
-      error: error?.message,
-    });
-  }
-},
-
-  // Modified register to prevent admin registration via public endpoint
+  // Modified register with cleaner error handling
   register: async (req, res) => {
     try {
       const {
@@ -149,7 +154,47 @@ const authController = {
         website
       } = req.body;
 
-      // Prevent admin role registration via public endpoint
+      // Validate required fields first
+      if (!name || !name.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Name is required'
+        });
+      }
+
+      if (!email || !email.trim()) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is required'
+        });
+      }
+
+      if (!password) {
+        return res.status(400).json({
+          success: false,
+          message: 'Password is required'
+        });
+      }
+
+      // Validate email format
+      const emailRegex = /^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}$/;
+      if (!emailRegex.test(email.trim())) {
+        return res.status(400).json({
+          success: false,
+          message: 'Please enter a valid email address'
+        });
+      }
+
+      // Check Gmail requirement
+      const emailLower = email.toLowerCase().trim();
+      if (!emailLower.endsWith('@gmail.com')) {
+        return res.status(400).json({
+          success: false,
+          message: 'Only Gmail addresses (@gmail.com) are allowed for registration'
+        });
+      }
+
+      // Prevent admin role registration
       if (role === 'admin') {
         return res.status(403).json({
           success: false,
@@ -157,46 +202,64 @@ const authController = {
         });
       }
 
-      // Basic required-checks
-      if (!name || !email || !password) {
+      // Validate password strength
+      if (password.length < 6) {
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: { general: ['name, email and password are required'] }
+          message: 'Password must be at least 6 characters long'
         });
       }
 
       // Check if user already exists
-      const existingUser = await User.findByEmail(email);
+      const existingUser = await User.findByEmail(emailLower);
       if (existingUser) {
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: { email: ['User with this email already exists'] }
+          message: 'An account with this email already exists'
         });
       }
 
-      // Prepare userData for non-admin users
-      const userData = {
-        name,
-        email,
-        password_hash: password,
-        role: ['student', 'hiring', 'investor'].includes(role) ? role : 'student',
-      };
-
-      // Add optional fields
-      if (typeof college !== 'undefined') userData.college = college;
-      if (typeof branch !== 'undefined') userData.branch = branch;
-      if (typeof year !== 'undefined') {
-        const parsedYear = Number.isFinite(Number(year)) ? parseInt(year, 10) : null;
-        if (parsedYear !== null) userData.year = parsedYear;
-        else {
+      // Validate year if provided
+      if (year !== undefined && year !== null && year !== '') {
+        const parsedYear = parseInt(year, 10);
+        if (isNaN(parsedYear) || parsedYear < 1 || parsedYear > 10) {
           return res.status(400).json({
             success: false,
-            message: 'Validation failed',
-            errors: { year: ['Year must be an integer'] }
+            message: 'Year must be a valid number between 1 and 10'
           });
         }
+      }
+
+      // Prepare userData
+      const userData = {
+        name: name.trim(),
+        email: emailLower,
+        password_hash: password,
+        role: ['student', 'hiring', 'investor'].includes(role) ? role : 'student',
+        force_password_change: false,
+        is_active: true,
+        verified: false
+      };
+
+      // Add optional fields for students
+      if (role === 'student') {
+        if (college) userData.college = college.trim();
+        if (branch) userData.branch = branch.trim();
+        if (year) userData.year = parseInt(year, 10);
+      }
+
+      // Add optional fields for hiring
+      if (role === 'hiring') {
+        if (company_name) userData.company_name = company_name.trim();
+        if (company_website) userData.company_website = company_website.trim();
+        if (team_size) userData.team_size = parseInt(team_size, 10);
+      }
+
+      // Add optional fields for investors
+      if (role === 'investor') {
+        if (firm_name) userData.firm_name = firm_name.trim();
+        if (investment_stage) userData.investment_stage = investment_stage.trim();
+        if (website) userData.website = website.trim();
       }
 
       // Create new user
@@ -205,18 +268,14 @@ const authController = {
       // Generate JWT token
       const token = authService.generateToken(user);
 
-      // Send welcome email
+      // Send welcome email (fire-and-forget)
       emailService.sendWelcomeEmail(user.email, user.name)
-        .then((result) => {
-          logger.info('Welcome email queued/sent', { to: user.email, result });
-        })
-        .catch((err) => {
-          logger.warn('Failed to send welcome email', { to: user.email, error: err?.message || err });
-        });
+        .then(() => logger.info('Welcome email sent', { to: user.email }))
+        .catch((err) => logger.warn('Failed to send welcome email', { error: err?.message }));
 
       return res.status(201).json({
         success: true,
-        message: 'User registered successfully',
+        message: 'Account created successfully',
         data: {
           user: user.toJSON(),
           token
@@ -224,50 +283,31 @@ const authController = {
       });
 
     } catch (error) {
-      logger.error('Registration error:', error?.stack || error);
+      logger.error('Registration error:', error);
 
       // Handle Sequelize validation errors
-      if (error?.name === 'SequelizeValidationError' && Array.isArray(error.errors)) {
-        const details = {};
-        error.errors.forEach((e) => {
-          if (!details[e.path]) details[e.path] = [];
-          details[e.path].push(e.message);
-        });
-
+      if (error?.name === 'SequelizeValidationError') {
+        const firstError = error.errors?.[0];
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: details
+          message: firstError?.message || 'Validation failed'
         });
       }
 
       // Handle unique constraint errors
-      if (error?.name === 'SequelizeUniqueConstraintError' || (error.parent?.code === '23505')) {
-        const details = {};
-        if (error?.fields) {
-          Object.keys(error.fields).forEach((k) => { 
-            details[k] = [`${k} must be unique`]; 
-          });
-        } else {
-          details.email = ['Email already exists'];
-        }
+      if (error?.name === 'SequelizeUniqueConstraintError') {
         return res.status(400).json({
           success: false,
-          message: 'Validation failed',
-          errors: details
+          message: 'An account with this email already exists'
         });
       }
 
       return res.status(500).json({
         success: false,
-        message: 'Registration failed',
-        error: error?.message || String(error)
+        message: 'Registration failed. Please try again.'
       });
     }
   },
-
-  // Keep all existing methods (profile, updateProfile, forgotPassword, resetPassword, etc.)
-  // ... (copy from your existing authController)
 
   // Get current user profile
   profile: async (req, res) => {
@@ -310,7 +350,6 @@ const authController = {
         });
       }
 
-      // Update user data
       const updateData = {};
       if (name) updateData.name = name;
       if (college) updateData.college = college;
@@ -342,10 +381,17 @@ const authController = {
     }
   },
 
-  // Add other existing methods here...
   forgotPassword: async (req, res) => {
     try {
       const { email } = req.body;
+      
+      if (!email) {
+        return res.status(400).json({
+          success: false,
+          message: 'Email is required'
+        });
+      }
+
       const user = await User.findByEmail(email);
 
       if (!user) {
@@ -368,8 +414,11 @@ const authController = {
 
       const tokenString = resetRecord && (resetRecord.token || (typeof resetRecord.get === 'function' && resetRecord.get('token')));
       if (!tokenString) {
-        logger.error('Password reset token missing after creation', { resetRecord });
-        return res.status(500).json({ success: false, message: 'Failed to create password reset token' });
+        logger.error('Password reset token missing after creation');
+        return res.status(500).json({ 
+          success: false, 
+          message: 'Failed to create password reset token' 
+        });
       }
 
       const scheme = (config?.app?.deepLinkScheme) || (process.env.DEEP_LINK_SCHEME || 'eph');
@@ -384,7 +433,7 @@ const authController = {
         webFallback 
       });
 
-      logger.info('Password reset email queued/sent', { to: user.email, resetId: resetRecord.id || null });
+      logger.info('Password reset email sent', { to: user.email });
       return res.json({
         success: true,
         message: 'If your email is registered, you will receive a password reset link'
@@ -394,8 +443,7 @@ const authController = {
       logger.error('Forgot password error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to process password reset request',
-        error: error?.message || String(error)
+        message: 'Failed to process password reset request'
       });
     }
   },
@@ -403,6 +451,13 @@ const authController = {
   resetPassword: async (req, res) => {
     try {
       const { token, newPassword } = req.body;
+
+      if (!token || !newPassword) {
+        return res.status(400).json({
+          success: false,
+          message: 'Token and new password are required'
+        });
+      }
 
       const resetRecord = await authService.validatePasswordResetToken(token);
       if (!resetRecord) {
@@ -420,10 +475,9 @@ const authController = {
         });
       }
 
-      user.password_hash = newPassword; // Will be hashed by model hook
+      user.password_hash = newPassword;
       await user.save();
 
-      // Mark reset token as used
       await resetRecord.markAsUsed();
 
       res.json({
@@ -435,8 +489,7 @@ const authController = {
       logger.error('Reset password error:', error);
       res.status(500).json({
         success: false,
-        message: 'Failed to reset password',
-        error: error.message
+        message: 'Failed to reset password'
       });
     }
   },
@@ -451,8 +504,7 @@ const authController = {
       logger.error('Logout error:', error);
       res.status(500).json({
         success: false,
-        message: 'Logout failed',
-        error: error.message
+        message: 'Logout failed'
       });
     }
   }

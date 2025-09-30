@@ -85,64 +85,117 @@ const RegisterScreen = () => {
     setFormData(prev => ({ ...prev, [field]: value }));
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: null }));
   };
+const handleRegister = async (e) => {
+  e.preventDefault();
+  if (!validateForm()) return;
 
-  const handleRegister = async (e) => {
-    e.preventDefault();
-    if (!validateForm()) return;
+  if (selectedRole === 'admin') {
+    setErrorMsg('Admin accounts are invite-only. Use the admin magic link.');
+    return;
+  }
 
-    if (selectedRole === 'admin') {
-      setErrorMsg('Admin accounts are invite-only. Use the admin magic link.');
-      return;
+  setLoading(true);
+  setErrorMsg('');
+  setErrors({});
+  
+  try {
+    const payload = {
+      name: formData.name.trim(),
+      email: formData.email.trim(),
+      password: formData.password,
+      role: selectedRole,
+    };
+
+    // Add role-specific fields
+    if (selectedRole === 'student') {
+      if (formData.college) payload.college = formData.college.trim();
+      if (formData.branch) payload.branch = formData.branch.trim();
+      if (formData.year) payload.year = parseInt(formData.year, 10);
     }
 
-    setLoading(true);
-    setErrorMsg('');
-    try {
-      const payload = {
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        password: formData.password,
-        role: selectedRole,
-      };
+    if (selectedRole === 'hiring') {
+      if (formData.companyName) payload.company_name = formData.companyName.trim();
+      if (formData.companyWebsite) payload.company_website = formData.companyWebsite.trim();
+      if (formData.teamSize) payload.team_size = parseInt(formData.teamSize, 10);
+    }
 
-      if (selectedRole === 'student') {
-        if (formData.college.trim()) payload.college = formData.college.trim();
-        if (formData.branch.trim()) payload.branch = formData.branch.trim();
-        const y = parseInt(formData.year.trim(), 10);
-        if (!isNaN(y)) payload.year = y;
-      } else if (selectedRole === 'hiring') {
-        if (formData.companyName.trim()) payload.company_name = formData.companyName.trim();
-        if (formData.companyWebsite.trim()) payload.company_website = formData.companyWebsite.trim();
-        const t = parseInt(formData.teamSize.trim(), 10);
-        if (!isNaN(t)) payload.team_size = t;
-      } else if (selectedRole === 'investor') {
-        if (formData.firmName.trim()) payload.firm_name = formData.firmName.trim();
-        if (formData.investmentStage.trim()) payload.investment_stage = formData.investmentStage.trim();
-        if (formData.firmWebsite.trim()) payload.website = formData.firmWebsite.trim();
-      }
+    if (selectedRole === 'investor') {
+      if (formData.firmName) payload.firm_name = formData.firmName.trim();
+      if (formData.investmentStage) payload.investment_stage = formData.investmentStage.trim();
+      if (formData.firmWebsite) payload.website = formData.firmWebsite.trim();
+    }
 
-      const result = await register(payload);
-      if (result.success) {
-        navigate('/main', { replace: true, state: { tab: 'competitions' } });
-      } else {
-        let friendly = result.message || 'Registration failed';
-        if (result.errors) {
-          if (typeof result.errors === 'object') {
-            friendly = Object.entries(result.errors)
-              .map(([k, v]) => `${k}: ${Array.isArray(v) ? v.join(', ') : v}`)
-              .join('\n');
-          } else if (Array.isArray(result.errors)) {
-            friendly = result.errors.join('\n');
+    console.log('Sending registration payload:', payload);
+
+    const result = await register(payload);
+    
+    console.log('Registration result:', result);
+
+    if (result.success) {
+      // ✅ Role-based redirect (though regular users can't be admin)
+      const user = result.user;
+      const isAdminRole = (user?.role || '').toLowerCase() === 'admin';
+      const destination = isAdminRole ? '/admin' : '/main';
+      navigate(destination, { replace: true, state: { tab: 'competitions' } });
+    } else {
+      // Handle errors from backend
+      if (result.errors && typeof result.errors === 'object') {
+        const fieldErrors = {};
+        const generalMessages = [];
+
+        Object.entries(result.errors).forEach(([field, messages]) => {
+          console.log('Processing error:', field, messages);
+          
+          const messageArray = Array.isArray(messages) ? messages : [messages];
+          
+          const fieldMap = {
+            'email': 'email',
+            'password': 'password',
+            'name': 'name',
+            'password_hash': 'password',
+            'college': 'college',
+            'branch': 'branch',
+            'year': 'year',
+            'company_name': 'companyName',
+            'company_website': 'companyWebsite',
+            'team_size': 'teamSize',
+            'firm_name': 'firmName',
+            'investment_stage': 'investmentStage',
+            'website': 'firmWebsite'
+          };
+          
+          const mappedField = fieldMap[field] || field;
+          
+          if (mappedField in formData) {
+            fieldErrors[mappedField] = messageArray[0];
+          } else {
+            generalMessages.push(`${messageArray.join(', ')}`);
           }
+        });
+
+        console.log('Field errors:', fieldErrors);
+        console.log('General messages:', generalMessages);
+
+        setErrors(fieldErrors);
+        
+        if (generalMessages.length > 0) {
+          setErrorMsg(generalMessages.join('\n'));
+        } else if (Object.keys(fieldErrors).length > 0) {
+          setErrorMsg('Please fix the errors in the form');
+        } else {
+          setErrorMsg(result.message || 'Validation failed - please check your input');
         }
-        setErrorMsg(friendly);
+      } else {
+        setErrorMsg(result.message || 'Registration failed - please try again');
       }
-    } catch (err) {
-      setErrorMsg(`Network error: ${err.message}`);
-    } finally {
-      setLoading(false);
     }
-  };
+  } catch (err) {
+    console.error('Registration error:', err);
+    setErrorMsg(`Error: ${err.message || 'Network error occurred'}`);
+  } finally {
+    setLoading(false);
+  }
+};
 
 const handleOAuthLogin = async (provider) => {
   setOauthLoading(true);

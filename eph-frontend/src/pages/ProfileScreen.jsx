@@ -233,7 +233,7 @@ const ProfileScreen = () => {
       await apiService.logout().catch(() => {});
     } finally {
       authService.clear?.();
-      window.location.replace("/roles"); // match your Flutter flow
+      window.location.replace("/");
     }
   };
 

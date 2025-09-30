@@ -16,6 +16,8 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 // Pages
 import SplashScreen from "./pages/SplashScreen.jsx";
+import LandingPage from './pages/LandingPage';
+import PublicCompetitionScreen from './pages/PublicCompetitionScreen';
 import RoleSelectionScreen from "./pages/RoleSelectionScreen.jsx";
 import LoginScreen from "./pages/LoginScreen.jsx";
 import RegisterScreen from "./pages/RegisterScreen.jsx";
@@ -44,7 +46,10 @@ function App() {
           <div className="App">
             <Routes>
               {/* Public */}
-              <Route path="/" element={<SplashScreen />} />
+              <Route path="/splash" element={<SplashScreen />} />
+              <Route path="/" element={<LandingPage />} />
+            <Route path="/competitions" element={<PublicCompetitionScreen />} />
+            <Route path="/about" element={<div>About Page - Coming Soon</div>} />
               <Route path="/roles" element={<RoleSelectionScreen />} />
               <Route path="/login" element={<LoginScreen />} />
               <Route path="/register" element={<RegisterScreen />} />
@@ -69,6 +74,15 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              <Route
+  path="/admin"
+  element={
+    <ProtectedRoute>
+      <MainNav />
+    </ProtectedRoute>
+  }
+/>
 
               {/* Competition - user flows */}
               <Route
