@@ -1,5 +1,7 @@
-import React, { useEffect, useState } from 'react';
+// src/pages/MainNav.jsx
+import React, { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
+import { useAuth } from '../hooks/useAuth';
 
 import SidebarLayout from '../components/SidebarLayout';
 import CompetitionScreen from './CompetitionScreen';
@@ -8,28 +10,55 @@ import PerksScreen from './PerksScreen';
 import ProfileScreen from './ProfileScreen';
 import AdminHubScreen from './AdminHubScreen';
 
+const TABS_FOR_USER = ['competitions', 'feed', 'perks', 'profile'];
+const TABS_FOR_ADMIN = ['competitions', 'feed', 'perks', 'profile', 'admin'];
+
 const MainNav = ({ initialPage = 'competitions' }) => {
   const location = useLocation();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
-  const [currentPage, setCurrentPage] = useState(initialPage);
+  const isAdmin = (user?.role || '').toLowerCase() === 'admin';
+  const basePath = isAdmin ? '/admin' : '/main';
 
-  // Read ?tab= from the URL and keep state in sync
+  const allowedTabs = useMemo(
+    () => (isAdmin ? TABS_FOR_ADMIN : TABS_FOR_USER),
+    [isAdmin]
+  );
+
+  const sanitizeTab = (tab) => {
+    const t = (tab || '').toLowerCase();
+    return allowedTabs.includes(t) ? t : 'competitions';
+  };
+
+  // Initialize from URL (?tab=) or prop fallback
+  const [currentPage, setCurrentPage] = useState(() =>
+    sanitizeTab(new URLSearchParams(location.search).get('tab') || initialPage)
+  );
+
+  // Keep state in sync if ?tab= changes externally
   useEffect(() => {
     const q = new URLSearchParams(location.search);
-    const tab = (q.get('tab') || '').toLowerCase();
-    if (tab && tab !== currentPage) {
-      setCurrentPage(tab);
+    const tabInUrl = sanitizeTab(q.get('tab'));
+    if (tabInUrl !== currentPage) setCurrentPage(tabInUrl);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search, allowedTabs.join('|')]);
+
+  // If path doesn't match role basePath, correct it (preserve query)
+  useEffect(() => {
+    if (!location.pathname.startsWith(basePath)) {
+      navigate({ pathname: basePath, search: location.search }, { replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search]);
+  }, [basePath]);
 
-  // When sidebar changes, update both state and URL (so deep links work)
+  // When sidebar changes, update both state and URL with correct basePath
   const handlePageChange = (page) => {
-    setCurrentPage(page);
+    const next = sanitizeTab(page);
+    setCurrentPage(next);
     const q = new URLSearchParams(location.search);
-    q.set('tab', page);
-    navigate({ pathname: '/main', search: `?${q.toString()}` }, { replace: true });
+    q.set('tab', next);
+    navigate({ pathname: basePath, search: `?${q.toString()}` }, { replace: true });
   };
 
   const renderCurrentPage = () => {
@@ -43,7 +72,7 @@ const MainNav = ({ initialPage = 'competitions' }) => {
       case 'profile':
         return <ProfileScreen />;
       case 'admin':
-        return <AdminHubScreen />;
+        return isAdmin ? <AdminHubScreen /> : <CompetitionScreen />;
       default:
         return <CompetitionScreen />;
     }

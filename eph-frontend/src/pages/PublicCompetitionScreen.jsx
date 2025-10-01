@@ -610,7 +610,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../hooks/useAuth";
 import { apiService } from "../services/apiService";
-import { Compass, Rocket, CheckCircle, X } from "lucide-react";
+import { Compass, Rocket, CheckCircle, X, Activity, Clock3, CheckCircle2, Search } from "lucide-react";
 
 import GlobalTopBar from "../components/GlobalTopBar";
 
@@ -854,10 +854,7 @@ const CompetitionDetailsDrawer = ({ compId, open, onClose }) => {
                       </thead>
                       <tbody className="text-primary-text">
                         {filteredLb.map((row, i) => (
-                          <tr
-                            key={i}
-                            className={i % 2 ? "bg-background" : "bg-surface"}
-                          >
+                          <tr key={i} className={i % 2 ? "bg-background" : "bg-surface"}>
                             <td className="px-4 py-2">{row.rank ?? i + 1}</td>
                             <td className="px-4 py-2">{row.team_name || row.leader?.name || "—"}</td>
                             <td className="px-4 py-2">
@@ -938,6 +935,7 @@ const PublicCompetitionScreen = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [searchText, setSearchText] = useState("");
+  const [activeTab, setActiveTab] = useState("upcoming"); // "upcoming" | "ongoing" | "completed"
 
   // Auth modal
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -954,8 +952,7 @@ const PublicCompetitionScreen = () => {
     try {
       const response = await apiService.listCompetitions();
       const allComps = response?.data?.competitions || response?.competitions || [];
-      const filtered = allComps.filter((comp) => computeStatus(comp) === "upcoming");
-      setCompetitions(filtered);
+      setCompetitions(allComps);
     } catch (err) {
       setError(err.message || "Failed to load competitions");
     } finally {
@@ -965,12 +962,16 @@ const PublicCompetitionScreen = () => {
 
   useEffect(() => { fetchCompetitions(); }, [fetchCompetitions]);
 
-  const filteredCompetitions = competitions.filter(
-    (c) =>
-      !searchText ||
-      (c.title || "").toLowerCase().includes(searchText.toLowerCase()) ||
-      (c.description || "").toLowerCase().includes(searchText.toLowerCase())
-  );
+  const filteredCompetitions = useMemo(() => {
+    const byTab = competitions.filter((c) => computeStatus(c) === activeTab);
+    if (!searchText) return byTab;
+    const q = searchText.toLowerCase();
+    return byTab.filter(
+      (c) =>
+        (c.title || "").toLowerCase().includes(q) ||
+        (c.description || "").toLowerCase().includes(q)
+    );
+  }, [competitions, searchText, activeTab]);
 
   const handleRegisterClick = (e, comp) => {
     e.stopPropagation();
@@ -998,6 +999,22 @@ const PublicCompetitionScreen = () => {
       </div>
     );
   }
+
+  // Tab button
+  const TabButton = ({ id, label, Icon }) => {
+    const selected = activeTab === id;
+    const base =
+      "px-4 py-2 rounded-lg border transition-colors flex items-center gap-2";
+    const cls = selected
+      ? "bg-surface text-primary-text border-border ring-2 ring-primary/30"
+      : "bg-surface text-secondary-text hover:bg-border border-border";
+    return (
+      <button onClick={() => setActiveTab(id)} className={`${base} ${cls}`}>
+        <Icon className="w-4 h-4" />
+        {label}
+      </button>
+    );
+  };
 
   return (
     <div className="min-h-screen font-sans bg-background text-primary-text transition-colors">
@@ -1071,24 +1088,19 @@ const PublicCompetitionScreen = () => {
         <div className="absolute bottom-0 right-0 w-72 h-72 rounded-full opacity-40 translate-x-16 translate-y-16 blur-2xl bg-primary-hover/20" />
         <div className="max-w-4xl mx-auto relative z-10">
           <h1 className="text-4xl sm:text-5xl md:text-6xl font-bold mb-6 leading-tight tracking-tighter text-primary-text">
-            Explore Upcoming Competitions
+            {activeTab === "upcoming" && "Explore Upcoming Competitions"}
+            {activeTab === "ongoing" && "Live Competitions"}
+            {activeTab === "completed" && "Completed Competitions"}
           </h1>
           <p className="text-secondary-text text-lg md:text-xl mb-10">
-            Join challenges, collaborate with peers, and showcase your ideas to the world.
+            {activeTab === "upcoming" && "Join challenges, collaborate with peers, and showcase your ideas to the world."}
+            {activeTab === "ongoing" && "See what's live right now and follow along."}
+            {activeTab === "completed" && "Browse previous challenges and their results."}
           </p>
-          <div className="flex flex-wrap gap-4 justify-center items-center">
-            <RouterLink
-              to="/roles"
-              className="px-8 py-3 rounded-full font-semibold transition-all hover:scale-105 shadow-sm hover:shadow-md flex items-center gap-2 bg-primary text-white hover:bg-primary-hover"
-            >
-              <Rocket className="h-5 w-5" /> Get Started
-            </RouterLink>
-            <a
-              href="#list"
-              className="px-8 py-3 rounded-full font-semibold transition-all hover:scale-105 shadow-sm hover:shadow-md flex items-center gap-2 border border-border bg-surface text-primary-text hover:bg-border"
-            >
-              <Compass className="h-5 w-5" /> Browse Competitions
-            </a>
+          <div className="flex flex-wrap gap-3 justify-center items-center">
+            <TabButton id="ongoing" label="Ongoing" Icon={Activity} />
+            <TabButton id="upcoming" label="Upcoming" Icon={Clock3} />
+            <TabButton id="completed" label="Completed" Icon={CheckCircle2} />
           </div>
         </div>
       </section>
@@ -1096,14 +1108,29 @@ const PublicCompetitionScreen = () => {
       {/* Search + List */}
       <section id="list" className="py-12 px-4 bg-background">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-6">
+          {/* Search */}
+          <div className="mb-6 relative">
+            <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+              <Search className="h-5 w-5 text-secondary-text" />
+            </div>
             <input
               type="text"
-              placeholder="Search competitions..."
+              placeholder={`Search ${activeTab} competitions...`}
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
-              className="w-full px-4 py-3 rounded-xl outline-none border border-border bg-surface text-primary-text placeholder-secondary-text"
+              className="w-full pl-10 pr-10 py-3 rounded-xl outline-none border border-border bg-surface text-primary-text placeholder-secondary-text"
             />
+            {!!searchText && (
+              <button
+                onClick={() => setSearchText("")}
+                className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                aria-label="Clear search"
+              >
+                <svg className="h-5 w-5 text-secondary-text hover:text-primary-text" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
           </div>
 
           {error && (
@@ -1115,6 +1142,7 @@ const PublicCompetitionScreen = () => {
           <div className="grid gap-6">
             {filteredCompetitions.map((comp) => {
               const pill = STATUS_PILL[computeStatus(comp)];
+              const status = computeStatus(comp);
               return (
                 <div
                   key={comp.id}
@@ -1154,15 +1182,15 @@ const PublicCompetitionScreen = () => {
                           <span>{comp.stats?.totalRegistrations || 0} registered</span>
                         </div>
 
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRegisterClick(e, comp);
-                          }}
-                          className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition-colors"
-                        >
-                          Register
-                        </button>
+                        {/* 👉 CTA: only show Register for UPCOMING */}
+                        {status === "upcoming" && (
+                          <button
+                            onClick={(e) => handleRegisterClick(e, comp)}
+                            className="px-4 py-2 bg-primary hover:bg-primary-hover text-white rounded-lg font-medium transition-colors"
+                          >
+                            Register
+                          </button>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -1176,8 +1204,16 @@ const PublicCompetitionScreen = () => {
               <svg className="text-border w-16 h-16 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 12h6m-6-4h6" />
               </svg>
-              <h3 className="text-primary-text text-lg font-medium mb-2">No upcoming competitions</h3>
-              <p className="text-secondary-text">Check back later for new challenges</p>
+              <h3 className="text-primary-text text-lg font-medium mb-2">
+                {activeTab === "upcoming" ? "No upcoming competitions" : activeTab === "ongoing" ? "No live competitions" : "No completed competitions"}
+              </h3>
+              <p className="text-secondary-text">
+                {activeTab === "upcoming"
+                  ? "Check back later for new challenges"
+                  : activeTab === "ongoing"
+                  ? "No competitions are live right now"
+                  : "Completed competitions will appear here"}
+              </p>
             </div>
           )}
         </div>
