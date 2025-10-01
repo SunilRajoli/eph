@@ -35,6 +35,9 @@ import CompetitionSubmitScreen from "./pages/CompetitionSubmitScreen.jsx";
 import CreateCompetitionScreen from "./pages/CreateCompetitionScreen.jsx";
 import EditCompetitionScreen from "./pages/EditCompetitionScreen.jsx";
 import MySubmission from "./pages/MySubmission.jsx";
+import CompetitionLeaderboard from "./pages/CompetitionLeaderboard.jsx";
+import ViewCompetitionScreen from "./pages/ViewCompetitionScreen.jsx";
+import CompetitionDetails from './pages/CompetitionDetails';
 
 import "./index.css";
 
@@ -56,6 +59,8 @@ function App() {
               <Route path="/forgot-password" element={<ForgotPasswordScreen />} />
               <Route path="/reset-password" element={<ResetPasswordScreen />} />
               <Route path="/auth/callback" element={<OAuthCallbackScreen />} />
+              <Route path="/competition/:competitionId/leaderboard" element={<CompetitionLeaderboard />} />
+              <Route path="/competition/:id" element={<CompetitionDetails />} />
 
               {/* Protected (generic) */}
               <Route
@@ -118,6 +123,15 @@ function App() {
                   </ProtectedRoute>
                 }
               />
+
+              <Route
+  path="/competition/:id"
+  element={
+    <ProtectedRoute>
+      <ViewCompetitionScreen />
+    </ProtectedRoute>
+  }
+/>
 
               {/* Submissions */}
               {/* NEW: User - My submissions */}

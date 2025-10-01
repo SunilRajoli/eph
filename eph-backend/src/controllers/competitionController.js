@@ -1,5 +1,5 @@
 // src/controllers/competitionController.js
-const { Competition, Registration, User, Submission } = require('../models');
+const { sequelize, Competition, Registration, User, Submission } = require('../models');
 const { Op } = require('sequelize');
 const emailService = require('../services/emailService');
 const logger = require('../utils/logger');
@@ -33,6 +33,15 @@ const serializeJSONText = (val, fallbackStringified = 'null') => {
   }
 };
 
+const normalizeJSONBInput = (val, fallback = {}) => {
+  if (val == null) return fallback;
+  if (typeof val === 'object') return val;         // already JSON
+  if (typeof val === 'string') {
+    try { return JSON.parse(val); } catch { return fallback; }
+  }
+  return fallback;
+};
+
 // Stages can be array of strings or objects. Always store as TEXT(JSON).
 const normalizeStagesForStorage = (stages) => {
   if (stages == null) return '[]';
@@ -60,6 +69,30 @@ const parseCompetitionTextFields = (compJson) => ({
   contact_info: safeParseJSON(compJson.contact_info, {}),
 });
 
+// Make sure newly added JSONB fields come out parsed in responses
+const parseCompetitionStructuredFields = (c) => ({
+  ...c,
+  // keep your legacy parsers:
+  stages: safeParseJSON(c.stages, []),
+  eligibility_criteria: typeof c.eligibility_criteria === 'string'
+    ? safeParseJSON(c.eligibility_criteria, {})
+    : (c.eligibility_criteria ?? {}),
+  contact_info: typeof c.contact_info === 'string'
+    ? safeParseJSON(c.contact_info, {})
+    : (c.contact_info ?? {}),
+
+  // NEW structured fields (always return POJOs/arrays)
+  team_limits: c.team_limits ?? {},
+  submission_limits: c.submission_limits ?? {},
+  evaluation: c.evaluation ?? {},
+  code_requirements: c.code_requirements ?? {},
+  external_data_policy: c.external_data_policy ?? {},
+  winner_license: c.winner_license ?? {},
+  data_access: c.data_access ?? {},
+  prizes: c.prizes ?? [],
+  resources: c.resources ?? [],
+});
+
 /* --------------------------- controller ----------------------------- */
 const competitionController = {
   // Get all competitions
@@ -69,7 +102,6 @@ const competitionController = {
       const {
         page = 1,
         limit = 20,
-        source_type,
         is_active = 'true',
         search,
         upcoming,
@@ -80,7 +112,6 @@ const competitionController = {
       const offset = (page - 1) * limit;
       const whereClause = {};
 
-      if (source_type) whereClause.source_type = source_type;
       if (is_active !== 'all') whereClause.is_active = is_active === 'true';
 
       const now = new Date();
@@ -130,50 +161,94 @@ const competitionController = {
         distinct: true
       });
 
+      // const competitionsWithStats = competitions.map(comp => {
+      //   const compData = parseCompetitionTextFields(comp.toJSON());
+      //   const totalRegistrations = compData.registrations?.length || 0;
+      //   const confirmedRegistrations =
+      //     compData.registrations?.filter(r => r.status === 'confirmed')?.length || 0;
+
+      //   const postedBy = compData.createdBy
+      //     ? {
+      //         id: compData.createdBy.id,
+      //         name: compData.createdBy.name,
+      //         email: compData.createdBy.email,
+      //         profile_pic_url: compData.createdBy.profile_pic_url
+      //       }
+      //     : null;
+
+      //   // Check if current user has registered
+      //   const user_registered = !!(
+      //     currentUserId &&
+      //     compData.registrations?.some(r => String(r.leader_id) === String(currentUserId))
+      //   );
+
+      //   // Check if current user has submitted
+      //   const user_submitted = !!(
+      //     currentUserId &&
+      //     compData.submissions?.some(s => String(s.leader_id) === String(currentUserId))
+      //   );
+
+      //   // Clean up submissions data (don't send full list to frontend for privacy)
+      //   const { submissions, ...compDataWithoutSubmissions } = compData;
+
+      //   return {
+      //     ...compDataWithoutSubmissions,
+      //     posted_by: postedBy, // backward compatible for Flutter
+      //     createdBy: compData.createdBy,
+      //     user_registered,
+      //     user_submitted,
+      //     stats: {
+      //       totalRegistrations,
+      //       confirmedRegistrations,
+      //       seatsRemaining: comp.seats_remaining,
+      //       totalSubmissions: submissions?.length || 0
+      //     }
+      //   };
+      // });
+
       const competitionsWithStats = competitions.map(comp => {
-        const compData = parseCompetitionTextFields(comp.toJSON());
-        const totalRegistrations = compData.registrations?.length || 0;
-        const confirmedRegistrations =
-          compData.registrations?.filter(r => r.status === 'confirmed')?.length || 0;
+  const compData = parseCompetitionStructuredFields(comp.toJSON());
 
-        const postedBy = compData.createdBy
-          ? {
-              id: compData.createdBy.id,
-              name: compData.createdBy.name,
-              email: compData.createdBy.email,
-              profile_pic_url: compData.createdBy.profile_pic_url
-            }
-          : null;
+  const totalRegistrations = compData.registrations?.length || 0;
+  const confirmedRegistrations =
+    compData.registrations?.filter(r => r.status === 'confirmed')?.length || 0;
 
-        // Check if current user has registered
-        const user_registered = !!(
-          currentUserId &&
-          compData.registrations?.some(r => String(r.leader_id) === String(currentUserId))
-        );
+  const postedBy = compData.createdBy
+    ? {
+        id: compData.createdBy.id,
+        name: compData.createdBy.name,
+        email: compData.createdBy.email,
+        profile_pic_url: compData.createdBy.profile_pic_url
+      }
+    : null;
 
-        // Check if current user has submitted
-        const user_submitted = !!(
-          currentUserId &&
-          compData.submissions?.some(s => String(s.leader_id) === String(currentUserId))
-        );
+  const user_registered = !!(
+    currentUserId &&
+    compData.registrations?.some(r => String(r.leader_id) === String(currentUserId))
+  );
 
-        // Clean up submissions data (don't send full list to frontend for privacy)
-        const { submissions, ...compDataWithoutSubmissions } = compData;
+  const user_submitted = !!(
+    currentUserId &&
+    compData.submissions?.some(s => String(s.leader_id) === String(currentUserId))
+  );
 
-        return {
-          ...compDataWithoutSubmissions,
-          posted_by: postedBy, // backward compatible for Flutter
-          createdBy: compData.createdBy,
-          user_registered,
-          user_submitted,
-          stats: {
-            totalRegistrations,
-            confirmedRegistrations,
-            seatsRemaining: comp.seats_remaining,
-            totalSubmissions: submissions?.length || 0
-          }
-        };
-      });
+  const { submissions, ...compDataWithoutSubmissions } = compData;
+
+  return {
+    ...compDataWithoutSubmissions,
+    posted_by: postedBy,
+    createdBy: compData.createdBy,
+    user_registered,
+    user_submitted,
+    stats: {
+      totalRegistrations,
+      confirmedRegistrations,
+      seatsRemaining: comp.seats_remaining,
+      totalSubmissions: submissions?.length || 0
+    }
+  };
+});
+
 
       const totalPages = Math.ceil(count / limit);
 
@@ -247,7 +322,8 @@ const competitionController = {
         });
       }
 
-      const competitionData = parseCompetitionTextFields(competition.toJSON());
+      // const competitionData = parseCompetitionTextFields(competition.toJSON());
+      const competitionData = parseCompetitionStructuredFields(competition.toJSON());
 
       const totalRegistrations = competitionData.registrations?.length || 0;
       const confirmedRegistrations =
@@ -317,18 +393,36 @@ const competitionController = {
       const {
         title,
         description,
-        source_type = 'internal',
         sponsor,
         start_date,
         end_date,
         max_team_size = 1,
         seats_remaining = 100,
+        total_seats: total_seats_body,
+        totalSeats: totalSeatsBody,
         stages = ['registration', 'submission', 'evaluation'],
         tags = [],
         eligibility_criteria,
         contact_info,
         banner_image_url,
-        location
+        location,
+
+        // NEW fields
+  description_long,
+  rules,                // keep old freeform rules if provided
+  rules_markdown,
+  registration_start_date,
+  registration_deadline, // you already had this
+  results_date,
+  prizes,
+  resources,
+  team_limits,
+  submission_limits,
+  evaluation,
+  code_requirements,
+  external_data_policy,
+  winner_license,
+  data_access
       } = req.body;
 
       // Validation
@@ -353,15 +447,27 @@ const competitionController = {
         });
       }
 
+      // Decide totals
+const totalSeatsInt = parseInt(
+  total_seats_body ?? totalSeatsBody ?? seats_remaining,
+  10
+);
+const seatsRemainingInt = parseInt(
+  seats_remaining ?? totalSeatsInt ?? 100,
+  10
+);
+
       const payload = {
         title: title.trim(),
         description: description?.trim() || null,
-        source_type,
         sponsor: sponsor?.trim() || null,
         start_date,
         end_date,
         max_team_size: parseInt(max_team_size, 10),
-        seats_remaining: parseInt(seats_remaining, 10),
+        total_seats: Number.isFinite(totalSeatsInt) ? totalSeatsInt : 100,
+  seats_remaining: Number.isFinite(seatsRemainingInt)
+    ? seatsRemainingInt
+    : (Number.isFinite(totalSeatsInt) ? totalSeatsInt : 100),
         created_by: req.user.id, // Set the creator
         banner_image_url: banner_image_url?.trim() || null,
         location: location?.trim() || null,
@@ -369,11 +475,32 @@ const competitionController = {
         stages: normalizeStagesForStorage(stages),
         tags: Array.isArray(tags) ? tags : [],
         eligibility_criteria: serializeJSONText(eligibility_criteria, '{}'),
-        contact_info: serializeJSONText(contact_info, '{}')
+        contact_info: serializeJSONText(contact_info, '{}'),
+
+        // NEW fields
+  description_long: description_long ?? null,
+  rules: rules ?? null,
+  rules_markdown: rules_markdown ?? null,
+
+  registration_start_date: registration_start_date ?? null,
+  registration_deadline: registration_deadline ?? null,
+  results_date: results_date ?? null,
+
+  prizes: Array.isArray(prizes) ? prizes : [],
+  resources: Array.isArray(resources) ? resources : [],
+
+  team_limits: normalizeJSONBInput(team_limits, {}),
+  submission_limits: normalizeJSONBInput(submission_limits, {}),
+  evaluation: normalizeJSONBInput(evaluation, {}),
+  code_requirements: normalizeJSONBInput(code_requirements, {}),
+  external_data_policy: normalizeJSONBInput(external_data_policy, {}),
+  winner_license: normalizeJSONBInput(winner_license, {}),
+  data_access: normalizeJSONBInput(data_access, {})
       };
 
       const competition = await Competition.create(payload);
-      const out = parseCompetitionTextFields(competition.toJSON());
+      // const out = parseCompetitionTextFields(competition.toJSON());
+      const out = parseCompetitionStructuredFields(competition.toJSON());
 
       res.status(201).json({
         success: true,
@@ -432,12 +559,42 @@ const competitionController = {
       if (Object.prototype.hasOwnProperty.call(updateData, 'stages')) {
         updateData.stages = normalizeStagesForStorage(updateData.stages);
       }
+
+      // Normalize JSONB to POJO
+const jsonbKeys = [
+  'eligibility_criteria',
+  'contact_info',
+  'team_limits',
+  'submission_limits',
+  'evaluation',
+  'code_requirements',
+  'external_data_policy',
+  'winner_license',
+  'data_access'
+];
+jsonbKeys.forEach((k) => {
+  if (Object.prototype.hasOwnProperty.call(updateData, k)) {
+    updateData[k] = normalizeJSONBInput(updateData[k], Array.isArray(Competition.rawAttributes[k]?.type?.key) ? [] : {});
+  }
+});
+
       if (Object.prototype.hasOwnProperty.call(updateData, 'eligibility_criteria')) {
         updateData.eligibility_criteria = serializeJSONText(updateData.eligibility_criteria, '{}');
       }
       if (Object.prototype.hasOwnProperty.call(updateData, 'contact_info')) {
         updateData.contact_info = serializeJSONText(updateData.contact_info, '{}');
       }
+
+      // Arrays
+if (Object.prototype.hasOwnProperty.call(updateData, 'tags') && typeof updateData.tags === 'string') {
+  try { updateData.tags = JSON.parse(updateData.tags); } catch { updateData.tags = []; }
+}
+if (Object.prototype.hasOwnProperty.call(updateData, 'prizes') && typeof updateData.prizes === 'string') {
+  try { updateData.prizes = JSON.parse(updateData.prizes); } catch { updateData.prizes = []; }
+}
+if (Object.prototype.hasOwnProperty.call(updateData, 'resources') && typeof updateData.resources === 'string') {
+  try { updateData.resources = JSON.parse(updateData.resources); } catch { updateData.resources = []; }
+}
 
       // Clean up string fields
       if (updateData.title) updateData.title = updateData.title.trim();
@@ -446,8 +603,30 @@ const competitionController = {
       if (updateData.location) updateData.location = updateData.location.trim();
       if (updateData.banner_image_url) updateData.banner_image_url = updateData.banner_image_url.trim();
 
+      // Trim simple strings
+['title','description','sponsor','location','banner_image_url','description_long','rules','rules_markdown']
+  .forEach(k => { if (typeof updateData[k] === 'string') updateData[k] = updateData[k].trim(); });
+
       await competition.update(updateData);
-      const out = parseCompetitionTextFields(competition.toJSON());
+      // const out = parseCompetitionTextFields(competition.toJSON());
+      const out = parseCompetitionStructuredFields(competition.toJSON());
+
+      if (Object.prototype.hasOwnProperty.call(updateData, 'total_seats')) {
+  const newTotal = parseInt(updateData.total_seats, 10);
+  if (!Number.isFinite(newTotal) || newTotal < 0) {
+    return res.status(400).json({ success: false, message: 'total_seats must be a non-negative integer' });
+  }
+  // If seats_remaining is not provided, keep it unchanged,
+  // but ensure it doesn’t exceed new total.
+  if (!Object.prototype.hasOwnProperty.call(updateData, 'seats_remaining')) {
+    updateData.seats_remaining = Math.min(competition.seats_remaining, newTotal);
+  } else {
+    const newRemaining = parseInt(updateData.seats_remaining, 10);
+    if (newRemaining > newTotal) {
+      return res.status(400).json({ success: false, message: 'seats_remaining cannot exceed total_seats' });
+    }
+  }
+}
 
       res.json({
         success: true,
@@ -711,7 +890,7 @@ const competitionController = {
           {
             model: Competition,
             as: 'competition',
-            attributes: ['id', 'title', 'source_type', 'start_date', 'end_date', 'sponsor', 'location']
+            attributes: ['id', 'title', 'start_date', 'end_date', 'sponsor', 'location']
           },
           {
             model: User,
@@ -892,7 +1071,151 @@ const competitionController = {
         error: error.message
       });
     }
+  },
+
+  // Add these methods to competitionController
+
+// Get competition leaderboard (public results)
+getCompetitionLeaderboard: async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const competition = await Competition.findByPk(id);
+    if (!competition) {
+      return res.status(404).json({
+        success: false,
+        message: 'Competition not found'
+      });
+    }
+
+    // Get all submissions with published results, ordered by score
+    const submissions = await Submission.findAll({
+      where: {
+        competition_id: id,
+        status: { [Op.in]: ['published', 'winner', 'shortlisted'] },
+        final_score: { [Op.ne]: null }
+      },
+      include: [
+        {
+          model: User,
+          as: 'leader',
+          attributes: ['id', 'name', 'email', 'profile_pic_url', 'college']
+        }
+      ],
+      order: [['final_score', 'DESC']],
+      limit: 100
+    });
+
+    // Format with ranks
+    const leaderboard = submissions.map((sub, index) => {
+      const data = sub.toJSON();
+      return {
+        ...data,
+        rank: index + 1,
+        attachments: safeParseJSON(data.attachments_json, [])
+      };
+    });
+
+    res.json({
+      success: true,
+      data: {
+        competition: {
+          id: competition.id,
+          title: competition.title,
+          sponsor: competition.sponsor,
+          location: competition.location,
+          start_date: competition.start_date,
+          end_date: competition.end_date,
+          results_date: competition.results_date,
+  prizes: competition.prizes
+        },
+        leaderboard,
+        totalEntries: submissions.length
+      }
+    });
+  } catch (error) {
+    logger.error('Get competition leaderboard error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch leaderboard',
+      error: error.message
+    });
   }
+},
+
+// Get registration stats for admin
+getRegistrationStats: async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const competition = await Competition.findByPk(id);
+    if (!competition) {
+      return res.status(404).json({
+        success: false,
+        message: 'Competition not found'
+      });
+    }
+
+    // Get registration counts
+    const totalRegistrations = await Registration.count({
+      where: { competition_id: id }
+    });
+
+    const registrationsByStatus = await Registration.findAll({
+      where: { competition_id: id },
+      attributes: [
+        'status',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['status']
+    });
+
+    // Get submission counts
+    const totalSubmissions = await Submission.count({
+      where: { competition_id: id }
+    });
+
+    const submissionsByStatus = await Submission.findAll({
+      where: { competition_id: id },
+      attributes: [
+        'status',
+        [sequelize.fn('COUNT', sequelize.col('id')), 'count']
+      ],
+      group: ['status']
+    });
+
+    res.json({
+      success: true,
+      data: {
+        competition: {
+          id: competition.id,
+          title: competition.title
+        },
+        registrations: {
+          total: totalRegistrations,
+          byStatus: registrationsByStatus.map(r => ({
+            status: r.status,
+            count: parseInt(r.dataValues.count)
+          }))
+        },
+        submissions: {
+          total: totalSubmissions,
+          byStatus: submissionsByStatus.map(s => ({
+            status: s.status,
+            count: parseInt(s.dataValues.count)
+          }))
+        }
+      }
+    });
+  } catch (error) {
+    logger.error('Get registration stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to fetch stats',
+      error: error.message
+    });
+  }
+}
 };
 
 module.exports = competitionController;
