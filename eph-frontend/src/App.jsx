@@ -1,4 +1,3 @@
-// src/App.jsx
 import React from "react";
 import {
   BrowserRouter as Router,
@@ -8,7 +7,9 @@ import {
 } from "react-router-dom";
 
 // Providers
-import { AuthProvider } from "./context/AuthProvider.jsx";
+import { AuthProvider } from "./context/AuthProvider.jsx"; // keep your existing auth
+// (Removed ColorThemeProvider; theming now happens via useTheme + CSS vars)
+// (Optional) keep your palette ThemeProvider if you still use it elsewhere
 import { ThemeProvider } from "./context/ThemeProvider.jsx";
 
 // Guards
@@ -16,8 +17,8 @@ import ProtectedRoute from "./components/ProtectedRoute.jsx";
 
 // Pages
 import SplashScreen from "./pages/SplashScreen.jsx";
-import LandingPage from './pages/LandingPage';
-import PublicCompetitionScreen from './pages/PublicCompetitionScreen';
+import LandingPage from "./pages/LandingPage.jsx";
+import PublicCompetitionScreen from "./pages/PublicCompetitionScreen.jsx";
 import RoleSelectionScreen from "./pages/RoleSelectionScreen.jsx";
 import LoginScreen from "./pages/LoginScreen.jsx";
 import RegisterScreen from "./pages/RegisterScreen.jsx";
@@ -37,7 +38,7 @@ import EditCompetitionScreen from "./pages/EditCompetitionScreen.jsx";
 import MySubmission from "./pages/MySubmission.jsx";
 import CompetitionLeaderboard from "./pages/CompetitionLeaderboard.jsx";
 import ViewCompetitionScreen from "./pages/ViewCompetitionScreen.jsx";
-import CompetitionDetails from './pages/CompetitionDetails';
+import CompetitionDetails from "./pages/CompetitionDetails.jsx";
 
 import "./index.css";
 
@@ -51,8 +52,8 @@ function App() {
               {/* Public */}
               <Route path="/splash" element={<SplashScreen />} />
               <Route path="/" element={<LandingPage />} />
-            <Route path="/competitions" element={<PublicCompetitionScreen />} />
-            <Route path="/about" element={<div>About Page - Coming Soon</div>} />
+              <Route path="/competitions" element={<PublicCompetitionScreen />} />
+              <Route path="/about" element={<div>About Page - Coming Soon</div>} />
               <Route path="/roles" element={<RoleSelectionScreen />} />
               <Route path="/login" element={<LoginScreen />} />
               <Route path="/register" element={<RegisterScreen />} />
@@ -62,7 +63,7 @@ function App() {
               <Route path="/competition/:competitionId/leaderboard" element={<CompetitionLeaderboard />} />
               <Route path="/competition/:id" element={<CompetitionDetails />} />
 
-              {/* Protected (generic) */}
+              {/* Protected */}
               <Route
                 path="/change-password"
                 element={
@@ -80,16 +81,17 @@ function App() {
                 }
               />
 
+              {/* Keep if /admin should render MainNav shell */}
               <Route
-  path="/admin"
-  element={
-    <ProtectedRoute>
-      <MainNav />
-    </ProtectedRoute>
-  }
-/>
+                path="/admin"
+                element={
+                  <ProtectedRoute>
+                    <MainNav />
+                  </ProtectedRoute>
+                }
+              />
 
-              {/* Competition - user flows */}
+              {/* Competition flows */}
               <Route
                 path="/competition/register"
                 element={
@@ -114,7 +116,6 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              {/* NEW: Edit a competition (admin) */}
               <Route
                 path="/competition/:id/edit"
                 element={
@@ -123,18 +124,16 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-
               <Route
-  path="/competition/:id"
-  element={
-    <ProtectedRoute>
-      <ViewCompetitionScreen />
-    </ProtectedRoute>
-  }
-/>
+                path="/competition/:id"
+                element={
+                  <ProtectedRoute>
+                    <ViewCompetitionScreen />
+                  </ProtectedRoute>
+                }
+              />
 
               {/* Submissions */}
-              {/* NEW: User - My submissions */}
               <Route
                 path="/submissions/my"
                 element={
@@ -143,7 +142,6 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-              {/* NEW: Admin - list submissions for a competition */}
               <Route
                 path="/admin/competition/:id/submissions"
                 element={
@@ -163,9 +161,9 @@ function App() {
                 }
               />
 
-              {/* Optional: Admin hub (if used elsewhere) */}
+              {/* Optional: Admin hub */}
               <Route
-                path="/admin"
+                path="/admin-hub"
                 element={
                   <ProtectedRoute>
                     <AdminHubScreen />
@@ -173,7 +171,7 @@ function App() {
                 }
               />
 
-              {/* Convenience redirects */}
+              {/* Convenience */}
               <Route path="/home" element={<Navigate to="/main" replace />} />
 
               {/* 404 */}

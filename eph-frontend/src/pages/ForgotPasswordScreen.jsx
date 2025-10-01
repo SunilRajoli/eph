@@ -1,11 +1,10 @@
 // src/pages/ForgotPasswordScreen.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import CustomButton from '../components/CustomButton';
 import FormInput from '../components/FormInput';
 import { apiService } from '../services/apiService';
 
-// Better icons (lucide-react)
+// Icons
 import { KeyRound, Mail, ArrowLeft, ShieldCheck, AlertCircle } from 'lucide-react';
 
 const ForgotPasswordScreen = () => {
@@ -53,43 +52,42 @@ const ForgotPasswordScreen = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-4
-                    bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+    <div className="min-h-screen flex items-center justify-center px-4 bg-background">
       <div className="w-full max-w-lg mx-auto">
-        <div className="bg-slate-900/70 backdrop-blur-md p-6 md:p-7 rounded-2xl border border-slate-700/60 shadow-2xl">
+        <div className="bg-surface/80 backdrop-blur-xl p-6 md:p-7 rounded-2xl border border-border shadow-card">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate(-1)}
-                className="text-slate-200/90 hover:text-white transition-colors"
+                className="text-secondary-text hover:text-primary-text transition-colors"
                 type="button"
                 aria-label="Go back"
                 title="Go back"
               >
                 <ArrowLeft className="w-6 h-6" />
               </button>
-              <h1 className="text-slate-50 text-2xl font-bold">Reset your password</h1>
+              <h1 className="text-primary-text text-2xl font-bold">Reset your password</h1>
             </div>
-            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
-              <KeyRound className="w-6 h-6 text-cyan-300" />
+            <div className="w-12 h-12 rounded-xl bg-primary/10 border border-primary/30 flex items-center justify-center">
+              <KeyRound className="w-6 h-6 text-primary" />
             </div>
           </div>
 
-          <p className="text-slate-300/90 mb-6 text-sm">
+          <p className="text-secondary-text mb-6 text-sm">
             Enter the email associated with your account. If it exists, we’ll send a secure link to reset your password.
           </p>
 
-          {/* Form — force inputs to be dark */}
+          {/* Form (theme-tokenized inputs) */}
           <form
             onSubmit={handleSubmit}
             className="
               space-y-4
-              [&_input]:bg-slate-800/70 [&_input]:text-slate-100 [&_input]:placeholder-slate-400
-              [&_input]:border [&_input]:border-slate-700/70 [&_input]:rounded-lg
+              [&_input]:bg-surface [&_input]:text-primary-text [&_input]:placeholder-secondary-text
+              [&_input]:border [&_input]:border-border [&_input]:rounded-lg
               [&_input]:px-10 [&_input]:py-2
-              [&_input:focus]:outline-none [&_input:focus]:ring-2 [&_input:focus]:ring-cyan-500/50
-              [&_.icon]:text-slate-300
+              [&_input:focus]:outline-none [&_input:focus]:ring-2 [&_input:focus]:ring-primary/40
+              [&_.icon]:text-secondary-text
             "
           >
             <FormInput
@@ -105,33 +103,38 @@ const ForgotPasswordScreen = () => {
               <div
                 className={`p-3 rounded-lg border flex items-start gap-2 ${
                   success
-                    ? 'bg-emerald-900/20 border-emerald-700/40'
-                    : 'bg-rose-900/20 border-rose-700/40'
+                    ? 'bg-emerald-500/10 border-emerald-500/30'
+                    : 'bg-rose-500/10 border-rose-500/30'
                 }`}
               >
                 {success ? (
-                  <ShieldCheck className="w-5 h-5 text-emerald-300 mt-0.5" />
+                  <ShieldCheck className="w-5 h-5 text-emerald-600 dark:text-emerald-300 mt-0.5" />
                 ) : (
-                  <AlertCircle className="w-5 h-5 text-rose-300 mt-0.5" />
+                  <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-300 mt-0.5" />
                 )}
-                <p className={`text-sm leading-5 ${success ? 'text-emerald-300' : 'text-rose-300'}`}>
-                  {message}
-                </p>
+                <p className="text-sm leading-5 text-primary-text">{message}</p>
               </div>
             )}
 
-            <CustomButton
+            {/* Submit (replaces CustomButton) */}
+            <button
               type="submit"
-              text={loading ? 'Sending…' : 'Send reset link'}
-              enabled={!loading}
-              loading={loading}
-            />
+              disabled={loading}
+              className={[
+                "w-full h-12 rounded-xl font-semibold border transition-colors",
+                loading
+                  ? "bg-border text-secondary-text cursor-not-allowed border-border"
+                  : "bg-primary hover:bg-primary-hover text-white border-transparent",
+              ].join(" ")}
+            >
+              {loading ? 'Sending…' : 'Send reset link'}
+            </button>
 
             <div className="text-center">
               <button
                 type="button"
                 onClick={() => navigate('/login')}
-                className="text-slate-300 hover:text-white transition-colors text-sm inline-flex items-center gap-1"
+                className="text-secondary-text hover:text-primary-text transition-colors text-sm inline-flex items-center gap-1"
               >
                 <ArrowLeft className="w-4 h-4" />
                 Back to Login

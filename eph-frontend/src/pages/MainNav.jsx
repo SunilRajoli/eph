@@ -1,4 +1,3 @@
-// src/pages/MainNav.jsx
 import React, { useEffect, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 
@@ -51,9 +50,11 @@ const MainNav = ({ initialPage = 'competitions' }) => {
   };
 
   return (
-    <SidebarLayout currentPage={currentPage} onPageChange={handlePageChange}>
-      {renderCurrentPage()}
-    </SidebarLayout>
+    <div className="min-h-screen bg-background text-primary-text">
+      <SidebarLayout currentPage={currentPage} onPageChange={handlePageChange}>
+        {renderCurrentPage()}
+      </SidebarLayout>
+    </div>
   );
 };
 
