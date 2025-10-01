@@ -5,41 +5,32 @@ import CustomButton from '../components/CustomButton';
 import RoleCard from '../components/RoleCard';
 import { ThemeContext } from '../context/ThemeContext.jsx';
 
-const SchoolIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14l9-5-9-5-9 5 9 5z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 14v7" />
-  </svg>
-);
-
-const WorkIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2-2v2m8 0V6a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V8a2 2 0 012-2V6" />
-  </svg>
-);
-
-const MoneyIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1" />
-  </svg>
-);
-
-const AdminIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-  </svg>
-);
+// ✅ New icons from lucide-react
+import {
+  GraduationCap,      // student
+  ShieldCheck,        // admin
+  Sparkles,           // header badge
+} from 'lucide-react';
 
 const RoleSelectionScreen = () => {
   const [selectedRole, setSelectedRole] = useState(null);
   const navigate = useNavigate();
   const theme = useContext(ThemeContext);
 
+  // ✅ Cleaner roles with better icons & micro copy
   const roles = [
-    { key: 'student',  title: 'Student',  subtitle: 'Showcase projects & join competitions', icon: SchoolIcon },
-    // { key: 'hiring',   title: 'Hiring',   subtitle: 'Discover talents & post opportunities', icon: WorkIcon },
-    // { key: 'investor', title: 'Investor', subtitle: 'Find startups & promising projects',    icon: MoneyIcon },
-    { key: 'admin',    title: 'Admin',    subtitle: 'Manage competitions & platform',        icon: AdminIcon },
+    {
+      key: 'student',
+      title: 'Student',
+      subtitle: 'Showcase projects, join competitions & learn by doing.',
+      icon: ({ className }) => <GraduationCap className={className} />,
+    },
+    {
+      key: 'admin',
+      title: 'Admin',
+      subtitle: 'Create & manage competitions, teams, and results.',
+      icon: ({ className }) => <ShieldCheck className={className} />,
+    },
   ];
 
   const handleContinue = () => {
@@ -51,21 +42,30 @@ const RoleSelectionScreen = () => {
   return (
     <div
       className="
-        min-h-screen
-        bg-gradient-primary    /* uses tailwind.config.js backgroundImage */
+        min-h-screen relative overflow-hidden
         flex items-center
+        bg-gradient-to-br from-slate-900 via-indigo-900 to-slate-950
       "
-      /* fallback to ThemeContext gradient if class not present for any reason */
-      style={{ backgroundImage: theme?.gradient }}
+      // fallback to ThemeContext gradient if you want to keep that option:
+      style={theme?.gradient ? { backgroundImage: theme.gradient } : undefined}
     >
-      <div className="safe-area w-full px-5 py-6">
+      {/* Decorative blobs (subtle) */}
+      <div className="pointer-events-none absolute -top-24 -left-24 w-72 h-72 rounded-full bg-cyan-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-32 -right-24 w-96 h-96 rounded-full bg-fuchsia-500/20 blur-3xl" />
+
+      <div className="safe-area w-full px-5 py-10">
         {/* Header */}
         <div className="max-w-5xl mx-auto flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-white/10 rounded-full flex items-center justify-center">
-              <span className="text-white text-xl">⚙</span>
+            <div className="w-12 h-12 bg-white/10 rounded-2xl border border-white/10 flex items-center justify-center shadow-inner">
+              <Sparkles className="w-6 h-6 text-cyan-300" />
             </div>
-            <h1 className="text-white text-2xl md:text-3xl font-bold">Choose your role</h1>
+            <div>
+              <h1 className="text-white text-2xl md:text-3xl font-extrabold tracking-tight">
+                Choose your role
+              </h1>
+              <p className="text-slate-300 text-sm">We’ll tailor the experience for you.</p>
+            </div>
           </div>
           <button
             onClick={handleSkip}
@@ -76,23 +76,56 @@ const RoleSelectionScreen = () => {
         </div>
 
         {/* Intro card */}
-        <div className="max-w-5xl mx-auto bg-white/10 backdrop-blur-xs p-4 md:p-5 rounded-xl border border-white/20 mb-6">
-          <p className="text-white/80 text-sm md:text-base">
-            Select a role that best describes you. This helps tailor the experience and show relevant content.
+        <div className="max-w-5xl mx-auto bg-white/5 backdrop-blur-xl p-4 md:p-5 rounded-2xl border border-white/10 mb-8">
+          <p className="text-slate-200/90 text-sm md:text-base">
+            Pick a role to get relevant actions, dashboards, and quick-start tips. You can switch
+            later in your profile settings.
           </p>
         </div>
 
-        {/* Role grid (responsive) */}
-        <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 mb-8">
+        {/* Roles */}
+        <div className="max-w-5xl mx-auto grid grid-cols-1 sm:grid-cols-2 gap-4 md:gap-5 mb-10">
           {roles.map((role) => (
-            <RoleCard
+            <button
               key={role.key}
-              title={role.title}
-              subtitle={role.subtitle}
-              icon={role.icon}
-              selected={selectedRole === role.key}
-              onTap={() => setSelectedRole(role.key)}
-            />
+              type="button"
+              onClick={() => setSelectedRole(role.key)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  setSelectedRole(role.key);
+                }
+              }}
+              className={[
+                "group text-left rounded-2xl p-4 md:p-5",
+                "bg-white/5 border border-white/10 backdrop-blur-xl",
+                "hover:bg-white/10 hover:border-white/20 transition-all",
+                "focus:outline-none focus:ring-2 focus:ring-cyan-400/40",
+                selectedRole === role.key ? "ring-2 ring-cyan-400/50" : "",
+              ].join(" ")}
+            >
+              <div className="flex items-start gap-4">
+                <div className={[
+                  "w-12 h-12 rounded-xl flex items-center justify-center",
+                  "bg-gradient-to-br from-cyan-500/20 to-cyan-400/10",
+                  "border border-white/10 shadow-inner",
+                  "group-hover:from-cyan-500/30 group-hover:to-cyan-400/20 transition-colors",
+                ].join(" ")}>
+                  <role.icon className="w-6 h-6 text-cyan-300" />
+                </div>
+                <div className="flex-1">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-white font-bold text-lg">{role.title}</h3>
+                    {selectedRole === role.key && (
+                      <span className="text-xs px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 border border-cyan-400/30">
+                        Selected
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-slate-300 mt-1">{role.subtitle}</p>
+                </div>
+              </div>
+            </button>
           ))}
         </div>
 
@@ -103,9 +136,9 @@ const RoleSelectionScreen = () => {
             enabled={!!selectedRole}
             onPressed={handleContinue}
           />
-          <p className="mt-3 text-white/75 text-xs text-center">
+          {/* <p className="mt-3 text-slate-300 text-xs text-center">
             You can change role later in profile settings.
-          </p>
+          </p> */}
         </div>
       </div>
     </div>

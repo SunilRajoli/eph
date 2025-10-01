@@ -1,15 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import { apiService } from "../services/apiService";
 import { authService } from "../services/authService";
-
-/**
- * FeedScreen (Web)
- * - Same header/look & feel as ProfileScreen
- * - Search with debounce
- * - Infinite scroll (IntersectionObserver)
- * - Expand card to play HTML5 video
- * - Expects backend shape: { success, data: { videos: [], pagination: { hasNextPage } } }
- */
 
 const Pill = ({ children }) => (
   <span className="inline-flex items-center px-3 py-1 rounded-full bg-white/10 border border-white/10 text-white text-sm font-semibold">
@@ -36,16 +28,19 @@ const useDebounced = (value, delay = 400) => {
 };
 
 const FeedScreen = () => {
-  // header/auth (same as Profile)
+  const [searchParams, setSearchParams] = useSearchParams();
+  const videoIdFromUrl = searchParams.get('video');
+  const videoUrlParam = searchParams.get('videoUrl');
+const videoTitleParam = searchParams.get('title') || '';
+const videoDescParam = searchParams.get('desc') || '';
+
+
   const [navUser, setNavUser] = useState(authService.getUser?.() || null);
   const isLoggedIn = useMemo(() => !!authService.getToken(), []);
-  const initials = (navUser?.name?.[0] || "U").toString().toUpperCase();
 
-  // search
   const [search, setSearch] = useState("");
   const debounced = useDebounced(search, 400);
 
-  // data/pagination
   const [videos, setVideos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fetchingMore, setFetchingMore] = useState(false);
@@ -54,21 +49,11 @@ const FeedScreen = () => {
   const limit = 12;
   const [hasNextPage, setHasNextPage] = useState(true);
 
-  // expand/play
   const [expandedIndex, setExpandedIndex] = useState(null);
+  const [specificVideo, setSpecificVideo] = useState(null);
+  const [loadingSpecific, setLoadingSpecific] = useState(false);
 
-  // scroll sentinel
   const sentinelRef = useRef(null);
-
-  // ---- helpers ----
-  const logout = async () => {
-    try {
-      await apiService.logout().catch(() => {});
-    } finally {
-      authService.clear?.();
-      window.location.replace("/roles");
-    }
-  };
 
   const normalizeMedia = (v) => {
     const copy = { ...v };
@@ -97,6 +82,29 @@ const FeedScreen = () => {
     const m = Math.floor(s / 60);
     const r = s % 60;
     return `${m}:${String(r).padStart(2, "0")}`;
+  };
+
+  const loadSpecificVideo = async (videoId) => {
+    setLoadingSpecific(true);
+    try {
+      const res = await apiService.getVideoById(videoId);
+      if (res?.success) {
+        const videoData = res.data?.video || res.video;
+        if (videoData) {
+          const normalized = normalizeMedia(videoData);
+          setSpecificVideo(normalized);
+          setExpandedIndex('specific');
+          setTimeout(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+          }, 100);
+        }
+      }
+    } catch (e) {
+      console.error('Failed to load specific video:', e);
+      setError('Failed to load video');
+    } finally {
+      setLoadingSpecific(false);
+    }
   };
 
   const loadFeed = async ({ reset }) => {
@@ -143,14 +151,64 @@ const FeedScreen = () => {
     }
   };
 
-  // initial + search change
+  useEffect(() => {
+  // If a direct URL is provided (preferred fallback)
+  if (videoUrlParam) {
+    const url = decodeURIComponent(videoUrlParam);
+    setSpecificVideo({
+      id: 'url-featured',
+      url,
+      thumbnail_url: '',
+      title: videoTitleParam || 'Shared video',
+      description: videoDescParam || '',
+      tags: [],
+      views_count: 0,
+      likes_count: 0,
+      length_sec: 0
+    });
+    setExpandedIndex('specific');
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, 100);
+    return;
+  }
+
+  // If "video" looks like an ID, fetch by ID; if it looks like a URL, treat as URL
+  if (videoIdFromUrl) {
+    try {
+      const decoded = decodeURIComponent(videoIdFromUrl);
+      const looksLikeUrl = /^https?:\/\//i.test(decoded);
+      if (looksLikeUrl) {
+        setSpecificVideo({
+          id: 'url-featured',
+          url: decoded,
+          thumbnail_url: '',
+          title: videoTitleParam || 'Shared video',
+          description: videoDescParam || '',
+          tags: [],
+          views_count: 0,
+          likes_count: 0,
+          length_sec: 0
+        });
+        setExpandedIndex('specific');
+        setTimeout(() => {
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        }, 100);
+      } else {
+        loadSpecificVideo(decoded);
+      }
+    } catch {
+      loadSpecificVideo(videoIdFromUrl);
+    }
+  }
+}, [videoIdFromUrl, videoUrlParam, videoTitleParam, videoDescParam]);
+
+
   useEffect(() => {
     setNavUser(authService.getUser?.() || null);
     loadFeed({ reset: true });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced]);
 
-  // infinite scroll
   useEffect(() => {
     if (!sentinelRef.current) return;
     const el = sentinelRef.current;
@@ -164,27 +222,150 @@ const FeedScreen = () => {
     );
     obs.observe(el);
     return () => obs.disconnect();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sentinelRef.current, hasNextPage, loading, fetchingMore]);
 
   const onTogglePlay = (idx) => {
     setExpandedIndex((cur) => (cur === idx ? null : idx));
   };
 
-  // ---- UI ----
+  const closeSpecificVideo = () => {
+  setSpecificVideo(null);
+  setExpandedIndex(null);
+  const newParams = new URLSearchParams(searchParams);
+  newParams.delete('video');
+  newParams.delete('videoUrl');
+  newParams.delete('title');
+  newParams.delete('desc');
+  setSearchParams(newParams);
+};
+
+
+  const renderVideoCard = (v, i, isSpecific = false) => {
+    const title = String(v.title ?? "");
+    const desc = String(v.description ?? "");
+    const tags = Array.isArray(v.tags) ? v.tags.map(String) : [];
+    const views = v.views_count ?? v.viewsCount ?? 0;
+    const likes = v.likes_count ?? v.likesCount ?? 0;
+    const lenSec = v.length_sec ?? v.lengthSec ?? 0;
+    const createdAt = v.created_at ?? v.createdAt;
+    const uploader =
+      (v.uploader && typeof v.uploader === "object" ? v.uploader.name : v.uploader_name) || "Unknown";
+    const isExpanded = isSpecific ? expandedIndex === 'specific' : expandedIndex === i;
+
+    return (
+      <div 
+        key={isSpecific ? 'specific' : (v._id || v.id || i)} 
+        className={`rounded-xl p-4 border ${isSpecific ? 'bg-gradient-to-r from-purple-500/20 to-pink-500/20 border-purple-400/30' : 'bg-white/5 border-white/10'}`}
+      >
+        {isSpecific && (
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <svg className="w-5 h-5 text-purple-300" fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+              <span className="text-purple-300 text-sm font-semibold">Featured Video</span>
+            </div>
+            <button
+              onClick={closeSpecificVideo}
+              className="text-white/60 hover:text-white text-xl font-bold leading-none px-2 py-1 hover:bg-white/10 rounded transition-colors"
+              title="Close"
+            >
+              ×
+            </button>
+          </div>
+        )}
+
+        <div className="flex gap-3">
+          <button
+            onClick={() => isSpecific ? setExpandedIndex(cur => cur === 'specific' ? null : 'specific') : onTogglePlay(i)}
+            className="relative w-[140px] h-[82px] shrink-0 rounded-lg overflow-hidden bg-white/10 hover:opacity-90 transition-opacity"
+            title={isExpanded ? "Close" : "Play"}
+          >
+            {v.thumbnail_url ? (
+              <img
+                src={v.thumbnail_url}
+                alt={title}
+                className="w-full h-full object-cover"
+                onError={(e) => (e.currentTarget.style.display = "none")}
+              />
+            ) : (
+              <div className="w-full h-full flex items-center justify-center">
+                <svg className="w-12 h-12 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path d="M23 7l-7 5 7 5V7z" strokeWidth="2" />
+                  <rect x="1" y="5" width="15" height="14" rx="2" ry="2" strokeWidth="2" />
+                </svg>
+              </div>
+            )}
+            <div className="absolute inset-0 flex items-center justify-center bg-black/20">
+              <svg className="w-10 h-10 text-white drop-shadow-lg" viewBox="0 0 24 24" fill="currentColor">
+                {isExpanded ? (
+                  <path d="M6 6h12v12H6z" />
+                ) : (
+                  <path d="M8 5v14l11-7z" />
+                )}
+              </svg>
+            </div>
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <div className="text-white font-bold text-[15px] line-clamp-2 mb-1">{title}</div>
+            {desc && <div className="text-white/70 text-xs mt-1 line-clamp-2">{desc}</div>}
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              <Pill>👤 {uploader}</Pill>
+              <Pill>👁️ {views}</Pill>
+              <Pill>❤ {likes}</Pill>
+              {createdAt && <Pill>⏱ {fmtAgo(createdAt)}</Pill>}
+            </div>
+          </div>
+
+          {!isExpanded && (
+            <div className="self-start">
+              <span className="px-2 py-1 rounded bg-black/70 text-white text-[11px] font-bold">
+                {fmtLen(lenSec)}
+              </span>
+            </div>
+          )}
+        </div>
+
+        {tags.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {tags.slice(0, 8).map((t, idx) => {
+              let txt = t.trim();
+              if (txt.startsWith("#")) txt = txt.slice(1).trim();
+              if (!txt) return null;
+              return <TagChip key={`${txt}-${idx}`} text={txt} />;
+            })}
+          </div>
+        )}
+
+        {isExpanded && v.url && (
+          <div className="mt-4 rounded-xl overflow-hidden shadow-2xl">
+            <div className="aspect-video bg-black">
+              <video 
+                src={v.url} 
+                controls 
+                autoPlay 
+                className="w-full h-full"
+                style={{ width: "100%", height: "100%" }}
+              />
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
     <div className="flex-1 p-6">
-      {/* Top header (same shell as Profile) */}
       <div className="mb-6">
-          <div>
-            <h1 className="text-2xl font-bold text-white mb-1">Feed</h1>
-            <p className="text-white/60">Watch 60-sec submissions from the community</p>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-white mb-1">Feed</h1>
+          <p className="text-white/60">Watch 60-sec submissions from the community</p>
+        </div>
       </div>
 
-      {/* Search bar */}
-      <div className="mb-3">
-        <div className="h-12 px-3 rounded-xl bg-white/5 border border-white/10 flex items-center">
+      <div className="mb-4">
+        <div className="h-12 px-3 rounded-xl bg-white/5 border border-white/10 flex items-center hover:border-white/20 transition-colors">
           <svg viewBox="0 0 24 24" className="w-5 h-5 text-white/70" fill="none" stroke="currentColor">
             <circle cx="11" cy="11" r="7" strokeWidth="2"></circle>
             <path d="m21 21-4.3-4.3" strokeWidth="2"></path>
@@ -198,7 +379,7 @@ const FeedScreen = () => {
           {search && (
             <button
               onClick={() => setSearch("")}
-              className="text-white/70 hover:text-white text-sm px-2 py-1 rounded hover:bg-white/10"
+              className="text-white/70 hover:text-white text-sm px-3 py-1 rounded hover:bg-white/10 transition-colors"
             >
               Clear
             </button>
@@ -206,15 +387,19 @@ const FeedScreen = () => {
         </div>
       </div>
 
-      {/* Loading bar */}
-      {loading && (
-        <div className="h-1.5 w-full rounded bg-white/10 overflow-hidden">
+      {loading && !specificVideo && (
+        <div className="h-1.5 w-full rounded bg-white/10 overflow-hidden mb-4">
           <div className="h-full w-1/3 animate-pulse bg-white/30" />
         </div>
       )}
 
-      {/* Error */}
-      {error && !loading && (
+      {loadingSpecific && (
+        <div className="flex items-center justify-center py-8">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white" />
+        </div>
+      )}
+
+      {error && !loading && !specificVideo && (
         <div className="mt-6 flex flex-col items-center text-center">
           <svg className="w-12 h-12 text-red-300" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" strokeWidth="2"/>
@@ -222,118 +407,45 @@ const FeedScreen = () => {
           <p className="text-white/80 mt-2">{error}</p>
           <button
             onClick={() => loadFeed({ reset: true })}
-            className="mt-3 px-3 py-1.5 rounded-lg bg-amber-400 text-black font-semibold"
+            className="mt-3 px-4 py-2 rounded-lg bg-amber-400 hover:bg-amber-500 text-black font-semibold transition-colors"
           >
             Retry
           </button>
         </div>
       )}
 
-      {/* Empty */}
-      {!error && !loading && videos.length === 0 && (
+      {!error && !loading && !specificVideo && videos.length === 0 && (
         <div className="mt-12 flex flex-col items-center text-center">
           <svg className="w-16 h-16 text-white/30" viewBox="0 0 24 24" fill="none" stroke="currentColor">
             <path d="M23 7l-7 5 7 5V7z" strokeWidth="2" />
             <rect x="1" y="5" width="15" height="14" rx="2" ry="2" strokeWidth="2" />
           </svg>
-          <p className="text-white/80 text-lg mt-4">No videos found</p>
-          <p className="text-white/50">Try a different search</p>
+          <p className="text-white/80 text-lg mt-4 font-semibold">No videos found</p>
+          <p className="text-white/50 mt-1">Try a different search or check back later</p>
         </div>
       )}
 
-      {/* List */}
-      <div className="space-y-4 mt-4">
-        {videos.map((v, i) => {
-          const title = String(v.title ?? "");
-          const desc = String(v.description ?? "");
-          const tags = Array.isArray(v.tags) ? v.tags.map(String) : [];
-          const views = v.views_count ?? v.viewsCount ?? 0;
-          const likes = v.likes_count ?? v.likesCount ?? 0;
-          const lenSec = v.length_sec ?? v.lengthSec ?? 0;
-          const createdAt = v.created_at ?? v.createdAt;
-          const uploader =
-            (v.uploader && typeof v.uploader === "object" ? v.uploader.name : v.uploader_name) || "Unknown";
-          const isExpanded = expandedIndex === i;
+      <div className="space-y-4">
+        {specificVideo && renderVideoCard(specificVideo, 0, true)}
 
-          return (
-            <div key={v._id || v.id || i} className="bg-white/5 rounded-xl p-4 border border-white/10">
-              {/* Header row */}
-              <div className="flex gap-3">
-                {/* Thumbnail / Play */}
-                <button
-                  onClick={() => onTogglePlay(i)}
-                  className="relative w-[140px] h-[82px] shrink-0 rounded-lg overflow-hidden bg-white/10"
-                  title={isExpanded ? "Close" : "Play"}
-                >
-                  {v.thumbnail_url ? (
-                    <img
-                      src={v.thumbnail_url}
-                      alt={title}
-                      className="w-full h-full object-cover"
-                      onError={(e) => (e.currentTarget.style.display = "none")}
-                    />
-                  ) : null}
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-white drop-shadow" viewBox="0 0 24 24" fill="currentColor">
-                      {isExpanded ? <path d="M18 6L6 18M6 6l12 12" /> : <path d="M8 5v14l11-7z" />}
-                    </svg>
-                  </div>
-                </button>
+        {videos.map((v, i) => renderVideoCard(v, i, false))}
 
-                {/* Text */}
-                <div className="min-w-0 flex-1">
-                  <div className="text-white font-bold text-[15px] line-clamp-2">{title}</div>
-                  {desc && <div className="text-white/70 text-xs mt-1 line-clamp-2">{desc}</div>}
-                  <div className="mt-2 flex flex-wrap items-center gap-2">
-                    <Pill>👤 {uploader}</Pill>
-                    <Pill>👁️ {views}</Pill>
-                    <Pill>❤ {likes}</Pill>
-                    {createdAt && <Pill>⏱ {fmtAgo(createdAt)}</Pill>}
-                  </div>
-                </div>
-
-                {/* Duration (collapsed) */}
-                {!isExpanded && (
-                  <div className="self-start">
-                    <span className="px-2 py-1 rounded bg-black/60 text-white text-[11px] font-bold">
-                      {fmtLen(lenSec)}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Tags */}
-              {tags.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {tags.slice(0, 6).map((t, idx) => {
-                    let txt = t.trim();
-                    if (txt.startsWith("#")) txt = txt.slice(1).trim();
-                    if (!txt) return null;
-                    return <TagChip key={`${txt}-${idx}`} text={txt} />;
-                  })}
-                </div>
-              )}
-
-              {/* Player */}
-              {isExpanded && v.url && (
-                <div className="mt-3 rounded-xl overflow-hidden">
-                  <div className="aspect-video bg-black">
-                    <video src={v.url} controls autoPlay style={{ width: "100%", height: "100%" }} />
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-
-        {/* Sentinel */}
-        {hasNextPage && (
-          <div ref={sentinelRef} className="py-6 flex items-center justify-center">
+        {hasNextPage && videos.length > 0 && (
+          <div ref={sentinelRef} className="py-8 flex items-center justify-center">
             {fetchingMore ? (
-              <div className="text-white/80 text-sm">Loading more…</div>
+              <div className="flex items-center gap-2 text-white/80 text-sm">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
+                <span>Loading more videos...</span>
+              </div>
             ) : (
               <div className="text-white/40 text-sm">Scroll to load more</div>
             )}
+          </div>
+        )}
+
+        {!hasNextPage && videos.length > 0 && (
+          <div className="py-8 text-center text-white/40 text-sm">
+            You've reached the end
           </div>
         )}
       </div>

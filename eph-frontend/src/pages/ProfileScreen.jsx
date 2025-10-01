@@ -258,18 +258,18 @@ const ProfileScreen = () => {
           ) : (
             <div>
               <div className="flex items-center gap-3">
-                <div className="text-xl font-extrabold text-white flex-1">
+                <div className="text-xl font-bold text-white flex-1">
                   {user?.name || "-"}
                 </div>
                 <Pill>{(user?.role || "student").toString().toUpperCase()}</Pill>
               </div>
 
               <div className="mt-3 flex flex-wrap gap-2">
-                <Pill>XP&nbsp;{user?.xp ?? 0}</Pill>
+                {/* <Pill>XP&nbsp;{user?.xp ?? 0}</Pill>
                 <Pill>
                   Badges&nbsp;
                   {Array.isArray(user?.badges) ? user.badges.length : 0}
-                </Pill>
+                </Pill> */}
                 <Pill>Verified&nbsp;{user?.verified ? "Yes" : "No"}</Pill>
               </div>
 
@@ -436,9 +436,9 @@ const ProfileScreen = () => {
               </div>
 
               {/* last_login & active */}
-              <LabelValue label="Last active">
+              {/* <LabelValue label="Last active">
                 {user?.last_login ? String(user.last_login) : "-"}
-              </LabelValue>
+              </LabelValue> */}
               <LabelValue label="Active">
                 {user?.is_active ? "Yes" : "No"}
               </LabelValue>

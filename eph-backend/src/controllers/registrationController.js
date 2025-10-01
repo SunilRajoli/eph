@@ -29,7 +29,7 @@ const registrationController = {
         {
           model: Competition,
           as: 'competition',
-          attributes: ['id', 'title', 'source_type', 'start_date', 'end_date'],
+          attributes: ['id', 'title', 'start_date', 'end_date'],
           where: search ? {
             title: { [Op.iLike]: `%${search}%` }
           } : undefined
@@ -100,7 +100,7 @@ const registrationController = {
           {
             model: Competition,
             as: 'competition',
-            attributes: ['id', 'title', 'source_type', 'start_date', 'end_date', 'max_team_size']
+            attributes: ['id', 'title', 'start_date', 'end_date', 'max_team_size']
           },
           {
             model: User,

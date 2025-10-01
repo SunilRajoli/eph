@@ -66,7 +66,7 @@ app.use(compression());
 
 // Rate limiting
 const limiter = rateLimit({
-  windowMs: config.rateLimit.window * 60 * 1000, // Convert minutes to milliseconds
+  windowMs: config.rateLimit.window * 5 * 1000, // Convert minutes to milliseconds
   max: config.rateLimit.maxRequests,
   message: {
     error: 'Too many requests from this IP, please try again later.',

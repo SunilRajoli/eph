@@ -38,12 +38,6 @@ const REGISTRATION_TYPES = {
   TEAM: 'team'
 };
 
-// Competition source types
-const COMPETITION_SOURCE_TYPES = {
-  COMPANY: 'company',
-  HACKATHON: 'hackathon',
-  UNIVERSITY: 'university'
-};
 
 // Perk types
 const PERK_TYPES = {
@@ -200,7 +194,6 @@ module.exports = {
   COMPETITION_STATUSES,
   REGISTRATION_STATUSES,
   REGISTRATION_TYPES,
-  COMPETITION_SOURCE_TYPES,
   PERK_TYPES,
   VIDEO_VISIBILITY_ROLES,
   FILE_CONSTRAINTS,

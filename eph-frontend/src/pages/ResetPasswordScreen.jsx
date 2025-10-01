@@ -1,16 +1,12 @@
 // src/pages/ResetPasswordScreen.jsx
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import CustomButton from '../components/CustomButton';
 import FormInput from '../components/FormInput';
 import { apiService } from '../services/apiService';
-import { ThemeContext } from '../context/ThemeContext.jsx';
 
-const LockIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-  </svg>
-);
+// Better icons (lucide-react)
+import { LockKeyhole, ArrowLeft, ShieldCheck, AlertTriangle, KeyRound } from 'lucide-react';
 
 const ResetPasswordScreen = () => {
   const [formData, setFormData] = useState({ password: '', confirmPassword: '' });
@@ -21,7 +17,6 @@ const ResetPasswordScreen = () => {
 
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const theme = useContext(ThemeContext);
 
   useEffect(() => {
     const tokenFromUrl = searchParams.get('token');
@@ -68,8 +63,8 @@ const ResetPasswordScreen = () => {
 
       if (result.success) {
         setSuccess(true);
-        setMessage(result.message || 'Password reset successful. Please login.');
-        setTimeout(() => navigate('/login'), 1500);
+        setMessage(result.message || 'Password reset successful. Redirecting to login…');
+        setTimeout(() => navigate('/login'), 1200);
       } else {
         setSuccess(false);
         setMessage(result.message || 'Reset failed. The token may be invalid or expired.');
@@ -85,33 +80,53 @@ const ResetPasswordScreen = () => {
   const maskedToken = token ? `${token.slice(0, 8)}…` : null;
 
   return (
-    <div
-      className="min-h-screen bg-gradient-primary flex items-center justify-center px-4"
-      style={{ backgroundImage: theme?.gradient }} // fallback to ThemeContext gradient
-    >
-      <div className="w-full max-w-md mx-auto">
-        <div className="bg-white/10 backdrop-blur-md p-6 rounded-xl border border-white/20">
+    <div className="min-h-screen flex items-center justify-center px-4
+                    bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="w-full max-w-lg mx-auto">
+        <div className="bg-slate-900/70 backdrop-blur-md p-6 md:p-7 rounded-2xl border border-slate-700/60 shadow-2xl">
           {/* Header */}
-          <div className="flex items-center gap-3 mb-4">
-            <div className="w-12 h-12 rounded-full bg-white/15 flex items-center justify-center">
-              <LockIcon className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => navigate(-1)}
+                className="text-slate-200/90 hover:text-white transition-colors"
+                type="button"
+                aria-label="Go back"
+                title="Go back"
+              >
+                <ArrowLeft className="w-6 h-6" />
+              </button>
+              <h1 className="text-slate-50 text-2xl font-bold">Set a new password</h1>
             </div>
-            <h1 className="text-white text-xl font-bold">Set a new password</h1>
+            <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
+              <KeyRound className="w-6 h-6 text-cyan-300" />
+            </div>
           </div>
 
           {maskedToken && (
-            <p className="text-white/70 text-xs mb-4">
-              Using token: {maskedToken} (hidden)
+            <p className="text-slate-300/80 text-xs mb-4">
+              Using token: <span className="font-mono">{maskedToken}</span>
             </p>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Form — force inputs to be dark even on paste/autofill */}
+          <form
+            onSubmit={handleSubmit}
+            className="
+              space-y-4
+              [&_input]:bg-slate-800/70 [&_input]:text-slate-100 [&_input]:placeholder-slate-400
+              [&_input]:border [&_input]:border-slate-700/70 [&_input]:rounded-lg
+              [&_input]:px-10 [&_input]:py-2
+              [&_input:focus]:outline-none [&_input:focus]:ring-2 [&_input:focus]:ring-cyan-500/50
+              [&_.icon]:text-slate-300
+            "
+          >
             <FormInput
               type="password"
               placeholder="New password"
               value={formData.password}
               onChange={(e) => handleInputChange('password', e.target.value)}
-              icon={LockIcon}
+              icon={LockKeyhole}
               showPasswordToggle
               required
             />
@@ -121,14 +136,25 @@ const ResetPasswordScreen = () => {
               placeholder="Confirm password"
               value={formData.confirmPassword}
               onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-              icon={LockIcon}
+              icon={LockKeyhole}
               showPasswordToggle
               required
             />
 
             {message && (
-              <div className={`p-3 rounded-lg ${success ? 'bg-green-800/20' : 'bg-red-800/20'}`}>
-                <p className={`text-sm ${success ? 'text-green-400' : 'text-red-400'}`}>
+              <div
+                className={`p-3 rounded-lg border flex items-start gap-2 ${
+                  success
+                    ? 'bg-emerald-900/20 border-emerald-700/40'
+                    : 'bg-rose-900/20 border-rose-700/40'
+                }`}
+              >
+                {success ? (
+                  <ShieldCheck className="w-5 h-5 text-emerald-300 mt-0.5" />
+                ) : (
+                  <AlertTriangle className="w-5 h-5 text-rose-300 mt-0.5" />
+                )}
+                <p className={`text-sm ${success ? 'text-emerald-300' : 'text-rose-300'}`}>
                   {message}
                 </p>
               </div>
@@ -136,7 +162,7 @@ const ResetPasswordScreen = () => {
 
             <CustomButton
               type="submit"
-              text={loading ? 'Saving...' : 'Save new password'}
+              text={loading ? 'Saving…' : 'Save new password'}
               enabled={!loading}
               loading={loading}
             />
@@ -145,9 +171,10 @@ const ResetPasswordScreen = () => {
               <button
                 type="button"
                 onClick={() => navigate('/login')}
-                className="text-white/70 hover:text-white transition-colors text-sm"
+                className="text-slate-300 hover:text-white transition-colors text-sm inline-flex items-center gap-1"
               >
-                ← Back to Login
+                <ArrowLeft className="w-4 h-4" />
+                Back to Login
               </button>
             </div>
           </form>

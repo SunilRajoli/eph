@@ -313,6 +313,14 @@ async getGitHubAuthUrl(redirectUri, state) {
       body: payload,
     });
   }
+
+  async getCompetitionLeaderboard(competitionId) {
+  return this.makeRequest(`/competitions/${competitionId}/leaderboard`);
+}
+
+async getCompetitionRegistrationStats(competitionId) {
+  return this.makeRequest(`/competitions/${competitionId}/registration-stats`);
+}
 }
 
 export const apiService = new ApiService();

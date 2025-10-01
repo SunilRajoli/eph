@@ -1,60 +1,70 @@
 // src/pages/ChangePasswordScreen.jsx
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import CustomButton from '../components/CustomButton';
 import FormInput from '../components/FormInput';
 import { apiService } from '../services/apiService';
-import { ThemeContext } from '../context/ThemeContext.jsx';
 
-const LockIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-      d="M12 15v2m-6 0h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-  </svg>
-);
-
-const ArrowLeftIcon = ({ className }) => (
-  <svg className={className} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-  </svg>
-);
+// Better icons (lucide-react)
+import {
+  ArrowLeft,
+  LockKeyhole,
+  ShieldCheck,
+  AlertTriangle,
+  KeyRound,
+  Info
+} from 'lucide-react';
 
 const ChangePasswordScreen = ({ isForced = false }) => {
-  const [formData, setFormData] = useState({ currentPassword: '', newPassword: '', confirmPassword: '' });
+  const [formData, setFormData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
+  });
   const [loading, setLoading] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
+  const [banner, setBanner] = useState({ type: null, message: '' });
 
   const navigate = useNavigate();
   const { mustChangePassword, clearMustChangePassword } = useAuth();
-  const theme = useContext(ThemeContext);
 
   const actuallyForced = isForced || mustChangePassword;
 
   const validatePassword = (password) => {
-    if (!password || password.length < 8) return 'Password must be at least 8 characters';
+    if (!password || password.length < 8) return 'Password must be at least 8 characters.';
     const hasUpper = /[A-Z]/.test(password);
     const hasLower = /[a-z]/.test(password);
     const hasNumber = /\d/.test(password);
-    const hasSpecial = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    const hasSpecial = /[!@#$%^&*(),.?":{}|<>_\-+=;'/\\[\]`~|]/.test(password);
     if (!hasUpper || !hasLower || !hasNumber || !hasSpecial) {
-      return 'Must include upper, lower, number & special';
+      return 'Must include upper, lower, number, and special character.';
     }
     return null;
   };
 
-  const handleInputChange = (field, value) => setFormData((p) => ({ ...p, [field]: value }));
+  const setError = (msg) => setBanner({ type: 'error', message: msg });
+  const setSuccess = (msg) => setBanner({ type: 'success', message: msg });
+  const clearBanner = () => setBanner({ type: null, message: '' });
+
+  const handleInputChange = (field, value) => {
+    if (banner.type) clearBanner();
+    setFormData((p) => ({ ...p, [field]: value }));
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
 
     const passwordError = validatePassword(formData.newPassword);
-    if (passwordError) return setErrorMsg(passwordError);
-    if (formData.newPassword !== formData.confirmPassword) return setErrorMsg('New passwords do not match');
-    if (!actuallyForced && !formData.currentPassword) return setErrorMsg('Current password is required');
+    if (passwordError) return setError(passwordError);
+    if (formData.newPassword !== formData.confirmPassword) {
+      return setError('New passwords do not match.');
+    }
+    if (!actuallyForced && !formData.currentPassword) {
+      return setError('Current password is required.');
+    }
 
     setLoading(true);
-    setErrorMsg('');
+    clearBanner();
 
     try {
       const result = await apiService.changePassword({
@@ -63,41 +73,72 @@ const ChangePasswordScreen = ({ isForced = false }) => {
       });
 
       if (result?.success) {
-        if (actuallyForced) clearMustChangePassword(); // unblocks the guard
-        alert('Password changed successfully!');
-        navigate('/main', { replace: true }); // go to dashboard
+        setSuccess('Password changed successfully. Redirecting…');
+        if (actuallyForced) clearMustChangePassword();
+        setTimeout(() => navigate('/main', { replace: true }), 1000);
       } else {
-        setErrorMsg(result?.message || 'Failed to change password');
+        setError(result?.message || 'Failed to change password.');
       }
     } catch (err) {
-      setErrorMsg(err?.message ? `Error: ${err.message}` : 'Failed to change password');
+      setError(err?.message ? `Error: ${err.message}` : 'Failed to change password.');
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-primary flex items-center justify-center px-4" style={{ backgroundImage: theme?.gradient }}>
-      <div className="w-full max-w-lg bg-white/10 backdrop-blur-xs p-5 md:p-6 rounded-xl border border-white/20">
+    <div className="min-h-screen flex items-center justify-center px-4
+                    bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950">
+      <div className="w-full max-w-lg bg-slate-900/70 backdrop-blur-md p-6 md:p-7 rounded-2xl border border-slate-700/60 shadow-2xl">
+        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
-            <button type="button" onClick={() => navigate(-1)} className="text-white/80 hover:text-white transition-colors">
-              <ArrowLeftIcon className="w-6 h-6" />
+            <button
+              type="button"
+              onClick={() => navigate(-1)}
+              className="text-slate-200/90 hover:text-white transition-colors"
+              aria-label="Go back"
+              title="Go back"
+            >
+              <ArrowLeft className="w-6 h-6" />
             </button>
-            <h1 className="text-white text-lg md:text-xl font-bold">
+            <h1 className="text-slate-50 text-2xl font-bold">
               {actuallyForced ? 'Set New Password' : 'Change Password'}
             </h1>
           </div>
+          <div className="w-12 h-12 rounded-xl bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center">
+            <KeyRound className="w-6 h-6 text-cyan-300" />
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        {/* Tip / Policy */}
+        <div className="flex items-start gap-2 mb-5 px-3 py-2 rounded-lg bg-slate-800/60 border border-slate-700/60">
+          <Info className="w-4 h-4 text-slate-300 mt-0.5" />
+          <p className="text-slate-300 text-xs">
+            Use at least <span className="font-semibold">8 characters</span> and include
+            uppercase, lowercase, number, and a special character.
+          </p>
+        </div>
+
+        {/* Form — force inputs dark even on paste/autofill */}
+        <form
+          onSubmit={handleSubmit}
+          className="
+            space-y-4
+            [&_input]:bg-slate-800/70 [&_input]:text-slate-100 [&_input]:placeholder-slate-400
+            [&_input]:border [&_input]:border-slate-700/70 [&_input]:rounded-lg
+            [&_input]:px-10 [&_input]:py-2
+            [&_input:focus]:outline-none [&_input:focus]:ring-2 [&_input:focus]:ring-cyan-500/50
+            [&_.icon]:text-slate-300
+          "
+        >
           {!actuallyForced && (
             <FormInput
               type="password"
-              placeholder="Current Password"
+              placeholder="Current password"
               value={formData.currentPassword}
               onChange={(e) => handleInputChange('currentPassword', e.target.value)}
-              icon={LockIcon}
+              icon={LockKeyhole}
               showPasswordToggle
               required
             />
@@ -105,35 +146,47 @@ const ChangePasswordScreen = ({ isForced = false }) => {
 
           <FormInput
             type="password"
-            placeholder="New Password"
+            placeholder="New password"
             value={formData.newPassword}
             onChange={(e) => handleInputChange('newPassword', e.target.value)}
-            icon={LockIcon}
+            icon={LockKeyhole}
             showPasswordToggle
             required
           />
 
           <FormInput
             type="password"
-            placeholder="Confirm New Password"
+            placeholder="Confirm new password"
             value={formData.confirmPassword}
             onChange={(e) => handleInputChange('confirmPassword', e.target.value)}
-            icon={LockIcon}
+            icon={LockKeyhole}
             showPasswordToggle
             required
           />
 
-          <p className="text-white/70 text-xs">• 8+ chars • Upper & lower • Number • Special</p>
-
-          {errorMsg && (
-            <div className="bg-red-800/20 p-3 rounded-lg">
-              <p className="text-red-400 text-sm">{errorMsg}</p>
+          {/* Banner */}
+          {banner.message && (
+            <div
+              className={`p-3 rounded-lg border flex items-start gap-2 ${
+                banner.type === 'success'
+                  ? 'bg-emerald-900/20 border-emerald-700/40'
+                  : 'bg-rose-900/20 border-rose-700/40'
+              }`}
+            >
+              {banner.type === 'success' ? (
+                <ShieldCheck className="w-5 h-5 text-emerald-300 mt-0.5" />
+              ) : (
+                <AlertTriangle className="w-5 h-5 text-rose-300 mt-0.5" />
+              )}
+              <p className={`text-sm ${banner.type === 'success' ? 'text-emerald-300' : 'text-rose-300'}`}>
+                {banner.message}
+              </p>
             </div>
           )}
 
           <CustomButton
             type="submit"
-            text={loading ? 'Updating...' : actuallyForced ? 'Set Password' : 'Change Password'}
+            text={loading ? 'Updating…' : (actuallyForced ? 'Set Password' : 'Change Password')}
             enabled={!loading}
             loading={loading}
           />

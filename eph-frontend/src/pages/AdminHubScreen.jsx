@@ -49,39 +49,7 @@ const AdminHubScreen = () => {
             <h1 className="text-2xl font-bold text-white mb-1">Admin Hub</h1>
             <p className="text-white/60">Manage users by role and access admin tools</p>
           </div>
-
-          {navUser && (
-            <div className="flex items-center gap-2">
-              <div className="text-white/70 max-w-[180px] truncate">{navUser?.name || "User"}</div>
-              <div className="relative group">
-                <button className="w-9 h-9 rounded-full bg-white/10 border border-white/10 text-white font-bold">
-                  {initials}
-                </button>
-                {/* hover dropdown */}
-                <div className="absolute right-0 mt-2 w-44 rounded-lg bg-black/70 border border-white/10 backdrop-blur p-1 hidden group-hover:block">
-                  <button
-                    onClick={() => navigate("/profile")}
-                    className="w-full text-left text-white/80 text-sm px-3 py-2 rounded hover:bg-white/10"
-                  >
-                    Profile
-                  </button>
-                  <button
-                    onClick={() => navigate("/change-password")}
-                    className="w-full text-left text-white/80 text-sm px-3 py-2 rounded hover:bg-white/10"
-                  >
-                    Change Password
-                  </button>
-                  <div className="h-px bg-white/10 my-1" />
-                  <button
-                    onClick={logout}
-                    className="w-full text-left text-red-300 text-sm px-3 py-2 rounded hover:bg-white/10"
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
+          
         </div>
       </div>
 
@@ -99,7 +67,7 @@ const AdminHubScreen = () => {
             </svg>
           }
         />
-        <Tile
+        {/* <Tile
           colorClass="bg-green-500"
           title="Hiring"
           subtitle="View hiring team accounts"
@@ -121,7 +89,7 @@ const AdminHubScreen = () => {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 21h14a2 2 0 002-2v-7H3v7a2 2 0 002 2z" />
             </svg>
           }
-        />
+        /> */}
         <Tile
           colorClass="bg-pink-500"
           title="Admins"

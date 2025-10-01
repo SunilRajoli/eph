@@ -53,4 +53,10 @@ router.get(
   competitionController.getCompetitionRegistrations
 );
 
+router.get(
+  '/:id/leaderboard',
+  competitionController.getCompetitionLeaderboard
+);
+
+
 module.exports = router;
