@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import logo from '../assets/logo.jpg'; // ✅ logo import
 
 const NavButton = ({ active, label, icon, onClick }) => (
   <button
@@ -26,7 +27,6 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
 
   const isAdmin = (user?.role || '').toLowerCase() === 'admin';
 
-  // close on outside click
   useEffect(() => {
     const onDown = (e) => {
       if (openMenu && menuRef.current && !menuRef.current.contains(e.target)) {
@@ -50,15 +50,12 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
     navigate('/', { replace: true });
   };
 
-  // ✅ Role-based page change with correct base path
   const handlePageChange = (page) => {
     onPageChange(page);
     const q = new URLSearchParams(location.search);
     q.set('tab', page);
-    
-    // Use /admin for admins, /main for others
+
     const basePath = isAdmin ? '/admin' : '/main';
-    
     navigate({ pathname: basePath, search: `?${q.toString()}` }, { replace: true });
   };
 
@@ -67,14 +64,17 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
       <div className="safe-area h-screen flex">
         {/* Sidebar */}
         <aside className="w-64 shrink-0 h-full bg-white/10 backdrop-blur-xs border-r border-white/20 p-4 flex flex-col">
-          {/* Brand */}
+          
+          {/* ✅ Brand with logo */}
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-              <span className="text-xl font-bold">E</span>
-            </div>
+            <img
+              src={logo}
+              alt="EPH Logo"
+              className="w-10 h-10 rounded-lg object-cover"
+            />
             <div>
-              <div className="text-base font-bold leading-5">EPH Platform</div>
-              <div className="text-xs text-white/70">Engineering Hub</div>
+              <div className="text-base font-bold leading-5">PPL</div>
+              <div className="text-xs text-white/70">Premiere Project League</div>
             </div>
           </div>
 
@@ -102,17 +102,6 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
                 </svg>
               }
             />
-            {/* <NavButton
-              label="Perks"
-              active={currentPage === 'perks'}
-              onClick={() => handlePageChange('perks')}
-              icon={
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
-                        d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8V7m0 9v1m6-12h2a2 2 0 012 2v2a2 2 0 01-2 2h-2M6 5H4a2 2 0 00-2 2v2a2 2 0 002 2h2"/>
-                </svg>
-              }
-            /> */}
             <NavButton
               label="Profile"
               active={currentPage === 'profile'}
@@ -139,7 +128,7 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
             )}
           </nav>
 
-          {/* Footer (user) with dropdown */}
+          {/* ✅ Footer (user profile dropdown) */}
           <div className="mt-auto pt-4 border-t border-white/15 relative" ref={menuRef}>
             <button
               type="button"
@@ -174,7 +163,6 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
               </svg>
             </button>
 
-            {/* Dropdown menu */}
             {openMenu && (
               <div
                 role="menu"
@@ -207,9 +195,8 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
           </div>
         </aside>
 
-        {/* Main */}
+        {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0">
-          {/* Sticky Navbar */}
           <header className="sticky top-0 z-20 bg-white/10 backdrop-blur-xs border-b border-white/20">
             <div className="px-4 py-3 md:px-6 flex items-center justify-between">
               <div className="flex items-center gap-3">
@@ -226,10 +213,7 @@ const SidebarLayout = ({ currentPage, onPageChange, children }) => {
             </div>
           </header>
 
-          {/* Scrollable content */}
-          <main className="flex-1 overflow-auto">
-            {children}
-          </main>
+          <main className="flex-1 overflow-auto">{children}</main>
         </div>
       </div>
     </div>

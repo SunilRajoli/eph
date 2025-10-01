@@ -26,7 +26,7 @@ const GlobalTopBar = ({
         <div className="flex justify-between items-center h-20">
           {/* Brand */}
           <RouterLink to="/" className="flex items-center">
-            <img src={logo} alt="EPH Logo" className="h-8 w-8 rounded-full object-cover" />
+            <img src={logo} alt="PPL Logo" className="h-8 w-8 rounded-full object-cover" />
             <span className="ml-3 text-2xl font-bold tracking-tight text-primary-text">
               {brand}
             </span>
